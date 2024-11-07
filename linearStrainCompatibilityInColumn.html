@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strain in Column (JavaScript & Civil Engineering)</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <!-- <link rel="stylesheet" href="https://unpkg.com/mvp.css">  -->
+    <script src="./linearStrainCompatibilityInColumn.js" defer></script>
+</head>
+
+<body>
+    <h1>Function Definition and Explanation</h1>
+    <p>The following JavaScript function calculates the linear strain ('εx') at a specific depth ('x') within a
+        rectangular cross-section subjected to bending, considering the depth of the cross-section ('d') and the
+        location of the neutral axis ('Xu').</p>
+
+    <pre><code>const linearStrainCompatibilityInColumn = (d, Xu, x) => {
+    // ... function body ...
+  };</code></pre>
+
+    <h2>Parameter Descriptions (Civil Engineering Context)</h2>
+    <ul>
+        <li><strong>'d'</strong>: Depth of the rectangular cross-section (meters, millimeters, etc.)</li>
+        <li><strong>'Xu'</strong>: Depth of the neutral axis from the top of the cross-section (meters, millimeters,
+            etc.)</li>
+        <li><strong>'x'</strong>: Depth from the top of the cross-section where strain is to be calculated (meters,
+            millimeters, etc.)</li>
+    </ul>
+
+    <h2>Function Body</h2>
+    <ol>
+        <li><strong>Error Handling:</strong>
+                <ul>
+                    <li>Checks for empty, null, or undefined values in 'd', 'Xu', and 'x' (throws error if found).</li>
+                    <li>Checks if all values are numbers using 'isNaN' (throws error if not).</li>
+                    <li>(Optional) Checks for negative values if applicable in your scenario.</li>
+                </ul>
+        </li>
+        <li><strong>Strain Calculation:</strong>
+                <ul>
+                    <li>Case 1: Neutral Axis Within the Cross-Section (Xu <= d): <ul>
+                    <li>Strain ('εx') calculated using: 'εx = 0.0035 * (1 - (x / Xu))'</li>
+                    <li>Assumes linear strain distribution from zero at the neutral axis.</li>
+                </ul>
+        </li>
+        <li>Case 2: Neutral Axis Outside the Cross-Section (Xu > d):
+            <ul>
+                <li>Strain ('εx') calculated using: 'εx = 0.002 * (Xu - x) / (Xu - (3 / 7) * d)'</li>
+                <li>Accounts for the shift in the neutral axis beyond the cross-section.</li>
+            </ul>
+        </li>
+        </ul>
+        </li>
+        <li><strong>Return Value:</strong> The function returns the calculated strain ('εx').</li>
+    </ol>
+
+    <h2>Example Usage</h2>
+    <pre><code>const d = 0.1; // Depth of cross-section (m)
+const Xu = 0.05; // Depth of neutral axis (m)
+const x = 0.02; // Depth where strain is to be calculated (m)
+
+try {
+  const strain = linearStrainCompatibilityInColumn(d, Xu, x);
+  console.log("Strain at depth", x, ":", strain);
+} catch (error) {
+  console.error("Error:", error.message);
+}</code></pre>
+
+    <h2>Explanation of Formulas (Conceptual)</h2>
+    <p>The provided formulas likely rely on simplified assumptions and may not capture complex material behaviors or
+        nonlinear stress-strain relationships. Actual strain distribution might deviate, especially for materials with
+        nonlinear properties.</p>
+
+    <h2>Additional Considerations</h2>
+    <ul>
+        <li>The function can be enhanced to incorporate material properties (e.g., elastic modulus) for stress
+            calculations.</li>
+        <li>More accurate strain calculations might require considering material behavior, loading conditions, and
+            non-linear effects.</li>
+        <li>For reliable calculations, consult engineering design codes or software if available.</li>
+    </ul>
+
+    <p>This explanation aims to be educational and may not cover all nuances of strain calculations in real-world
+        engineering applications.</p>
+</body>
+
+</html>
