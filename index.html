@@ -1,0 +1,2366 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mu vs Pu - Advanced Column Interaction Diagram</title>
+    <!-- Plotly Library -->
+    <script src="./plotly-latest.min.js"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-primary: #0b0f19;
+            --bg-secondary: #161b26;
+            --bg-tertiary: #1f2638;
+            --accent-color: #3b82f6;
+            --accent-hover: #2563eb;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --border-color: #2d3748;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --font-main: 'Plus Jakarta Sans', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        .light-theme {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f1f5f9;
+            --accent-color: #2563eb;
+            --accent-hover: #1d4ed8;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --border-color: #e2e8f0;
+            --success-color: #059669;
+            --danger-color: #dc2626;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        body {
+            font-family: var(--font-main);
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar styling */
+        .disclaimer-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+
+        .disclaimer-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            max-width: 480px;
+            width: 100%;
+            padding: 1.75rem;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+        }
+
+        .disclaimer-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.75rem;
+        }
+
+        .disclaimer-card p {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+
+        .disclaimer-card button.btn {
+            margin-top: 0.25rem;
+        }
+
+        .sidebar {
+            width: 360px;
+            background-color: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-header h1 {
+            font-size: 1.25rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .theme-toggle {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+        }
+
+        .theme-toggle:hover {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+
+        .sidebar-footer {
+            flex-shrink: 0;
+            padding: 0.85rem 1.5rem;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.72rem;
+            line-height: 1.5;
+            color: var(--text-secondary);
+        }
+
+        .sidebar-footer a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        .sidebar-footer a:hover {
+            text-decoration: underline;
+        }
+
+        .section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin: 1.5rem 0 0.75rem 0;
+            font-weight: 700;
+        }
+
+        .section-title:first-of-type {
+            margin-top: 0;
+        }
+
+        .input-group {
+            margin-bottom: 1rem;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.375rem;
+            font-weight: 500;
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
+        input[type="number"], select, input[type="text"] {
+            width: 100%;
+            padding: 0.625rem;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        input[type="number"]:focus, select:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        .color-picker-wrapper {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        input[type="color"] {
+            -webkit-appearance: none;
+            border: none;
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            background: none;
+        }
+
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
+        input[type="color"]::-webkit-color-swatch {
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+        }
+
+        button.btn {
+            width: 100%;
+            padding: 0.625rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        button.btn-primary {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        button.btn-primary:hover {
+            background-color: var(--accent-hover);
+        }
+
+        button.btn-secondary {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        button.btn-secondary:hover {
+            background-color: var(--border-color);
+        }
+
+        /* Main Area layout */
+        .main-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .tabs-header {
+            display: flex;
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 1.5rem;
+        }
+
+        .tab-btn {
+            padding: 1rem 1.5rem;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .tab-btn.active {
+            color: var(--accent-color);
+        }
+
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: var(--accent-color);
+        }
+
+        .tab-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: none;
+        }
+
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        /* Editor layout split */
+        .editor-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 1.5rem;
+            height: calc(100vh - 120px);
+        }
+
+        @media (max-width: 1024px) {
+            .editor-grid {
+                grid-template-columns: 1fr;
+                height: auto;
+                overflow-y: auto;
+            }
+        }
+
+        .card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        /* Canvas visualizer styles */
+        .canvas-container {
+            position: relative;
+            flex: 1;
+            min-height: 400px;
+            background-color: var(--bg-primary);
+            border-radius: 0.5rem;
+            border: 1px dashed var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #sectionSvg {
+            width: 100%;
+            height: 100%;
+            max-height: 480px;
+        }
+
+        /* Tooltip and floating info */
+        .hover-info {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            background: rgba(22, 27, 38, 0.85);
+            backdrop-filter: blur(4px);
+            border: 1px solid var(--border-color);
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.8rem;
+            font-family: var(--font-mono);
+            pointer-events: none;
+        }
+
+        /* Reinforcement list */
+        .rebar-list-container {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .rebar-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            text-align: left;
+        }
+
+        .rebar-table th, .rebar-table td {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .rebar-table th {
+            background-color: var(--bg-tertiary);
+            color: var(--text-secondary);
+            position: sticky;
+            top: 0;
+        }
+
+        .rebar-table tr:hover {
+            background-color: var(--bg-tertiary);
+        }
+
+        .delete-btn {
+            background: none;
+            border: none;
+            color: var(--danger-color);
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* Diagrams tab split */
+        .diagrams-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 1.5rem;
+            height: calc(100vh - 120px);
+        }
+
+        .diagrams-grid > .card {
+            min-height: 0;
+        }
+
+        @media (max-width: 1024px) {
+            .diagrams-grid {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+
+            .diagrams-grid > .card {
+                height: calc(100vh - 200px);
+                min-height: 480px;
+            }
+        }
+
+        /* Profile visualizer (Strain & Stress) */
+        .profiles-container {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-around;
+            align-items: center;
+            flex: 1;
+            min-height: 0;
+            background-color: var(--bg-primary);
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+
+        .profile-plot {
+            flex: 1;
+            height: 100%;
+            min-height: 0;
+        }
+
+        /* Analysis values styling */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .design-check-bar {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .design-check-bar .input-group {
+            margin-bottom: 0;
+        }
+
+        .check-result-badge {
+            padding: 0.625rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 700;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            font-family: var(--font-mono);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .check-result-badge.safe {
+            background-color: rgba(16, 185, 129, 0.12);
+            border-color: var(--success-color);
+            color: var(--success-color);
+        }
+
+        .check-result-badge.unsafe {
+            background-color: rgba(239, 68, 68, 0.12);
+            border-color: var(--danger-color);
+            color: var(--danger-color);
+        }
+
+        .diagram-status-banner {
+            font-size: 0.8rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .diagram-status-banner:empty {
+            display: none;
+        }
+
+        .diagram-status-banner.empty {
+            background-color: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .diagram-status-banner.stale {
+            background-color: rgba(245, 158, 11, 0.12);
+            color: #f59e0b;
+            border: 1px solid #f59e0b;
+        }
+
+        .diagram-status-banner.fresh {
+            display: none;
+        }
+
+        .stat-card {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--accent-color);
+            font-family: var(--font-mono);
+            margin-top: 0.25rem;
+        }
+
+        /* Pattern Generator */
+        .pattern-generator {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            padding: 1rem;
+            background-color: var(--bg-tertiary);
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+            margin-top: 1rem;
+        }
+
+        /* Scrollbar styles */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- DISCLAIMER GATE: must be acknowledged before the app becomes usable -->
+    <div id="disclaimerOverlay" class="disclaimer-overlay">
+        <div class="disclaimer-card">
+            <div class="disclaimer-title">Before you get started</div>
+            <p>
+                This tool helps visualize column P-M interaction behavior — it isn't certified design software,
+                and the underlying calculations, while based on IS 456, haven't been independently verified for
+                production use.
+            </p>
+            <p>
+                Please treat any values here as a reference rather than a final design check, and double-check
+                anything important with your own calculations or established software before relying on it.
+                Use at your own risk.
+            </p>
+            <button class="btn btn-primary" onclick="acknowledgeDisclaimer()">I Understand, Continue</button>
+        </div>
+    </div>
+
+    <!-- SIDEBAR FOR INPUTS -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h1>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="9" y1="3" x2="9" y2="21"></line>
+                    <line x1="15" y1="3" x2="15" y2="21"></line>
+                    <line x1="3" y1="9" x2="21" y2="9"></line>
+                    <line x1="3" y1="15" x2="21" y2="15"></line>
+                </svg>
+                Mu vs Pu
+            </h1>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">
+                <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </button>
+        </div>
+
+        <div class="sidebar-content">
+            <!-- Section Save/Load -->
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+                <button class="btn btn-secondary" onclick="saveSection()" style="flex: 1;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg>
+                    Save Section
+                </button>
+                <button class="btn btn-secondary" onclick="document.getElementById('sectionFileInput').click()" style="flex: 1;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 21V9"></path><path d="m7 14 5-5 5 5"></path><path d="M5 3h14"></path></svg>
+                    Load Section
+                </button>
+                <input type="file" id="sectionFileInput" accept=".json,application/json" style="display: none;" onchange="loadSection(event)">
+            </div>
+
+            <!-- Section Properties -->
+            <div class="section-title">Section Properties</div>
+            <div class="input-group" style="margin-bottom: 0.75rem;">
+                <label for="shapeType">Section Shape</label>
+                <select id="shapeType" onchange="toggleShapeInputs()">
+                    <option value="rectangular" selected>Rectangular</option>
+                    <option value="circular">Circular</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <div class="input-row">
+                    <div id="widthInputContainer">
+                        <label for="maxX">Width (b, mm)</label>
+                        <input type="number" value="350" id="maxX" oninput="debouncedUpdate()">
+                    </div>
+                    <div>
+                        <label for="maxY" id="depthLabel">Depth (D, mm)</label>
+                        <input type="number" value="450" id="maxY" oninput="debouncedUpdate()">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Material Grade Properties -->
+            <div class="section-title">Material Grades</div>
+            <div class="input-group">
+                <div class="input-row">
+                    <div>
+                        <label for="fck">Concrete (f<sub>ck</sub>)</label>
+                        <select id="fck" onchange="debouncedUpdate()">
+                            <option value="20">M20</option>
+                            <option value="25" selected>M25</option>
+                            <option value="30">M30</option>
+                            <option value="35">M35</option>
+                            <option value="40">M40</option>
+                            <option value="50">M50</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="fy">Steel (f<sub>y</sub>)</label>
+                        <select id="fy" onchange="debouncedUpdate()">
+                            <option value="Fe250">Fe250</option>
+                            <option value="Fe415" selected>Fe415</option>
+                            <option value="Fe500">Fe500</option>
+                            <option value="Fe550">Fe550</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Single Rebar Input -->
+            <div class="section-title">Add Reinforcement</div>
+            <div class="input-group" style="margin-bottom: 0.5rem;">
+                <div class="input-row">
+                    <div>
+                        <label for="dia">Diameter (mm)</label>
+                        <input type="number" value="16" id="dia" style="margin-bottom: 0.25rem;">
+                        <div class="dia-presets" style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
+                            <button class="btn btn-secondary" style="padding: 0.2rem; font-size: 0.75rem; width: auto; flex: 1; min-width: 28px;" onclick="setDia(12); return false;">12</button>
+                            <button class="btn btn-secondary" style="padding: 0.2rem; font-size: 0.75rem; width: auto; flex: 1; min-width: 28px;" onclick="setDia(16); return false;">16</button>
+                            <button class="btn btn-secondary" style="padding: 0.2rem; font-size: 0.75rem; width: auto; flex: 1; min-width: 28px;" onclick="setDia(20); return false;">20</button>
+                            <button class="btn btn-secondary" style="padding: 0.2rem; font-size: 0.75rem; width: auto; flex: 1; min-width: 28px;" onclick="setDia(25); return false;">25</button>
+                            <button class="btn btn-secondary" style="padding: 0.2rem; font-size: 0.75rem; width: auto; flex: 1; min-width: 28px;" onclick="setDia(32); return false;">32</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="color">Bar Color</label>
+                        <div class="color-picker-wrapper">
+                            <input id="color" value="#3b82f6" type="color">
+                            <span id="colorHex" style="font-size: 0.8rem; font-family: var(--font-mono)">#3B82F6</span>
+                        </div>
+                        <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.25rem;">
+                            <input type="checkbox" id="enableSnapping" checked style="width: auto; cursor: pointer;">
+                            <label for="enableSnapping" style="margin-bottom: 0; font-size: 0.8rem; cursor: pointer; user-select: none;">Snap to Grid & Cover</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="input-group">
+                <div class="input-row">
+                    <div>
+                        <label for="rebarX">X Coordinate (mm)</label>
+                        <input type="number" value="50" id="rebarX">
+                    </div>
+                    <div>
+                        <label for="rebarY">Y Coordinate (mm)</label>
+                        <input type="number" value="50" id="rebarY">
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+                <button class="btn btn-primary" onclick="addSingleRebar(); return false;" style="flex: 1;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    Add Bar
+                </button>
+                <button class="btn btn-secondary" onclick="addFourCornerBars(); return false;" title="Quick add 4 corner bars using cover" style="flex: 1;">
+                    Corners (4x)
+                </button>
+            </div>
+
+            <!-- Pattern Generator -->
+            <div class="section-title">Quick Pattern Generator</div>
+            <div class="pattern-generator">
+                <div class="input-group" style="margin-bottom: 0;">
+                    <label for="cover">Clear Cover (mm)</label>
+                    <input type="number" value="40" id="cover">
+                </div>
+                <div class="input-row" id="rectPatternContainer">
+                    <div>
+                        <label for="numX">Bars in X face</label>
+                        <input type="number" value="3" id="numX">
+                    </div>
+                    <div>
+                        <label for="numY">Bars in Y face</label>
+                        <input type="number" value="3" id="numY">
+                    </div>
+                </div>
+                <div class="input-group" id="circPatternContainer" style="display: none; margin-bottom: 0;">
+                    <label for="numCirc">Total Number of Bars</label>
+                    <input type="number" value="8" id="numCirc">
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        Placed at equal angular spacing θ = 360° / N
+                    </p>
+                </div>
+                <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.25rem;">
+                    <input type="checkbox" id="appendPattern" style="width: auto; cursor: pointer;">
+                    <label for="appendPattern" style="margin-bottom: 0; font-size: 0.8rem; cursor: pointer; user-select: none;">Append to existing bars</label>
+                </div>
+                <button class="btn btn-secondary" onclick="generatePerimeterPattern()">
+                    Generate Pattern
+                </button>
+            </div>
+
+            <button class="btn btn-secondary" onclick="clearAllRebars()" style="margin-top: 1.5rem; color: var(--danger-color); border-color: rgba(239, 68, 68, 0.2);">
+                Clear Reinforcement
+            </button>
+
+            <!-- Design Point Verification -->
+            <div class="section-title" style="margin-top: 1.5rem;">Design Check</div>
+            <div class="design-check-bar">
+                <div class="input-group">
+                    <label for="checkPu">Design Pu (kN)</label>
+                    <input type="number" id="checkPu" placeholder="e.g. 800">
+                </div>
+                <div class="input-group">
+                    <label for="checkMu">Design Mu (kNm)</label>
+                    <input type="number" id="checkMu" placeholder="e.g. 120">
+                </div>
+                <div class="input-group" id="checkAxisGroup">
+                    <label for="checkAxis">Bending Axis</label>
+                    <select id="checkAxis">
+                        <option value="x">X-axis (D / maxY)</option>
+                        <option value="y">Y-axis (b / maxX)</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="checkDesignPoint()">Check Point</button>
+                <div id="checkResult" class="check-result-badge">Enter Pu &amp; Mu to verify</div>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            Not certified design software — please double-check results before relying on them for real design work.
+            <br>
+            Spotted something off? <a href="https://github.com/swas02/Mu-vs-Pu/issues" target="_blank" rel="noopener noreferrer">Let us know on GitHub</a>.
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD CONTENT -->
+    <div class="main-container">
+        <!-- Tabs Header -->
+        <div class="tabs-header">
+            <button class="tab-btn active" onclick="switchTab('designTab')">Section Design</button>
+            <button class="tab-btn" onclick="switchTab('diagramTab')">Interaction Curves</button>
+            <button class="tab-btn" onclick="switchTab('tableTab')">Data Table</button>
+        </div>
+
+        <!-- TAB 1: DESIGN & EDITOR -->
+        <div id="designTab" class="tab-content active">
+            <div class="editor-grid">
+                <!-- Left panel: Canvas editor -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Interactive Column Section Editor</div>
+                        <div style="font-size: 0.85rem; color: var(--text-secondary)">
+                            Drag bars to position | Click section to place | Delete key removes selected
+                        </div>
+                    </div>
+                    <div class="canvas-container">
+                        <svg id="sectionSvg" viewBox="0 0 400 400">
+                            <!-- SVG contents will be drawn dynamically -->
+                        </svg>
+                        <div class="hover-info" id="svgHoverInfo">X: 0mm | Y: 0mm</div>
+                    </div>
+                </div>
+
+                <!-- Right panel: Rebar details and stats summary -->
+                <div class="card" style="overflow-y: auto;">
+                    <div class="card-header">
+                        <div class="card-title">Reinforcement Details</div>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Total Steel Area (Ast)</div>
+                            <div class="stat-value" id="statAst">0 mm²</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Steel Ratio (p<sub>t</sub>)</div>
+                            <div class="stat-value" id="statRatio">0.00%</div>
+                        </div>
+                    </div>
+                    <div class="rebar-list-container">
+                        <table class="rebar-table">
+                            <thead>
+                                <tr>
+                                    <th>Color</th>
+                                    <th>Dia (mm)</th>
+                                    <th>X (mm)</th>
+                                    <th>Y (mm)</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rebarTableBody">
+                                <!-- Rebars will be listed here dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: DIAGRAMS AND ANALYSIS -->
+        <div id="diagramTab" class="tab-content">
+            <div class="diagrams-grid">
+                <!-- Left: Mu vs Pu plot -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Mu vs Pu Interaction Curve</div>
+                        <button class="btn btn-primary generate-diagram-btn" onclick="generateDiagram()" style="width: auto; padding: 0.5rem 1rem;">Generate Diagram</button>
+                    </div>
+                    <div class="diagram-status-banner"></div>
+                    <div id="plotlyPlot" style="width: 100%; flex: 1; min-height: 0;"></div>
+                </div>
+
+                <!-- Right: Strain & Stress distribution diagram at NA position -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Cross Section Strain & Stress Profiles</div>
+                        <div style="font-size: 0.85rem; color: var(--text-secondary)">
+                            Corresponding to current neutral axis position
+                        </div>
+                    </div>
+                    <div class="stats-grid" style="margin-bottom: 0.5rem;">
+                        <div class="stat-card">
+                            <div class="stat-label">Neutral Axis (Xu)</div>
+                            <div class="stat-value" id="profileXu">- mm</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Axial Load (Pu)</div>
+                            <div class="stat-value" id="profilePu">- kN</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Moment (Mu)</div>
+                            <div class="stat-value" id="profileMu">- kNm</div>
+                        </div>
+                    </div>
+                    <div class="profiles-container">
+                        <div id="strainProfilePlot" class="profile-plot"></div>
+                        <div id="stressProfilePlot" class="profile-plot"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: DATA TABLE -->
+        <div id="tableTab" class="tab-content">
+            <div class="card" style="flex: 1; min-height: 450px;">
+                <div class="card-header">
+                    <div class="card-title">Interaction Curve Data Points</div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <select id="tableAxis" onchange="updateDataTable()" style="width: auto;">
+                            <option value="x">Bending about X-axis (D / maxY)</option>
+                            <option value="y">Bending about Y-axis (b / maxX)</option>
+                        </select>
+                        <button class="btn btn-primary generate-diagram-btn" onclick="generateDiagram()" style="width: auto; padding: 0.5rem 1rem;">Generate Diagram</button>
+                        <button class="btn btn-secondary" onclick="exportToCSV()" style="width: auto; padding: 0.5rem 1rem;">
+                            Export CSV
+                        </button>
+                    </div>
+                </div>
+                <div class="diagram-status-banner"></div>
+                <div style="overflow: auto; flex: 1;">
+                    <table class="rebar-table" id="dataPointsTable">
+                        <thead>
+                            <tr>
+                                <th>Xu/d Ratio</th>
+                                <th>Neutral Axis Xu (mm)</th>
+                                <th>Axial Force Pu (kN)</th>
+                                <th>Bending Moment Mu (kNm)</th>
+                                <th>Eccentricity e (mm)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dataPointsTableBody">
+                            <!-- Calculated curve values go here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN SCRIPT -->
+    <script>
+        // Dismiss the disclaimer gate - only entry point that reveals the app
+        function acknowledgeDisclaimer() {
+            const overlay = document.getElementById("disclaimerOverlay");
+            if (overlay) overlay.remove();
+        }
+
+        // Profiles cache to save states between shape transitions
+        let profiles = {
+            rectangular: {
+                circles: [
+                    { dia: 16, x: 50, y: 50, color: "#3b82f6" },
+                    { dia: 16, x: 300, y: 50, color: "#3b82f6" },
+                    { dia: 16, x: 50, y: 225, color: "#3b82f6" },
+                    { dia: 16, x: 300, y: 225, color: "#3b82f6" },
+                    { dia: 16, x: 300, y: 400, color: "#3b82f6" },
+                    { dia: 16, x: 50, y: 400, color: "#3b82f6" }
+                ],
+                maxX: 350,
+                maxY: 450,
+                fck: "25",
+                fy: "Fe415",
+                cover: 40
+            },
+            circular: {
+                circles: [
+                    { dia: 16, x: 225, y: 65, color: "#3b82f6" },
+                    { dia: 16, x: 225, y: 385, color: "#3b82f6" },
+                    { dia: 16, x: 65, y: 225, color: "#3b82f6" },
+                    { dia: 16, x: 385, y: 225, color: "#3b82f6" },
+                    { dia: 16, x: 112, y: 112, color: "#3b82f6" },
+                    { dia: 16, x: 338, y: 112, color: "#3b82f6" },
+                    { dia: 16, x: 112, y: 338, color: "#3b82f6" },
+                    { dia: 16, x: 338, y: 338, color: "#3b82f6" }
+                ],
+                maxX: 450,
+                maxY: 450,
+                fck: "25",
+                fy: "Fe415",
+                cover: 40
+            }
+        };
+
+        let sectionType = "rectangular";
+        let circles = [...profiles.rectangular.circles];
+        let maxX = profiles.rectangular.maxX;
+        let maxY = profiles.rectangular.maxY;
+        let fck = 25;
+        let fy = "Fe415";
+        const Est = 2 * Math.pow(10, 5);
+        const dataPoints = 300;
+        let calculatedCurve = [];
+        let selectedBarIndex = null;
+        let isDragging = false;
+        let activeTab = 'designTab';
+        let snappedYGlobal = 0;
+
+        function toggleShapeInputs() {
+            // 1. Save current profile details
+            profiles[sectionType] = {
+                circles: [...circles],
+                maxX: parseInt(document.getElementById("maxX").value) || 350,
+                maxY: parseInt(document.getElementById("maxY").value) || 450,
+                fck: document.getElementById("fck").value,
+                fy: document.getElementById("fy").value,
+                cover: parseInt(document.getElementById("cover").value) || 40
+            };
+
+            // 2. Set new section type
+            const newType = document.getElementById("shapeType").value;
+            sectionType = newType;
+
+            // 3. Load target profile details
+            const profile = profiles[newType];
+            circles = [...profile.circles];
+            
+            document.getElementById("maxX").value = profile.maxX;
+            document.getElementById("maxY").value = profile.maxY;
+            document.getElementById("fck").value = profile.fck;
+            document.getElementById("fy").value = profile.fy;
+            document.getElementById("cover").value = profile.cover;
+
+            maxX = profile.maxX;
+            maxY = profile.maxY;
+            fck = parseFloat(profile.fck);
+            fy = profile.fy;
+            selectedBarIndex = null;
+
+            // 4. Adapt layout inputs visibility
+            const widthContainer = document.getElementById("widthInputContainer");
+            const depthLabel = document.getElementById("depthLabel");
+            const rectPattern = document.getElementById("rectPatternContainer");
+            const circPattern = document.getElementById("circPatternContainer");
+
+            if (newType === "circular") {
+                widthContainer.style.display = "none";
+                depthLabel.textContent = "Diameter (D, mm)";
+                rectPattern.style.display = "none";
+                circPattern.style.display = "block";
+            } else {
+                widthContainer.style.display = "block";
+                depthLabel.textContent = "Depth (D, mm)";
+                rectPattern.style.display = "grid";
+                circPattern.style.display = "none";
+            }
+            debouncedUpdate();
+        }
+
+        // Serialize the current section, materials and reinforcement layout to a JSON file
+        function saveSection() {
+            const sectionData = {
+                version: 1,
+                sectionType,
+                fck: document.getElementById("fck").value,
+                fy: document.getElementById("fy").value,
+                cover: parseInt(document.getElementById("cover").value) || 40,
+                dia: parseInt(document.getElementById("dia").value) || 16,
+                color: document.getElementById("color").value,
+                enableSnapping: document.getElementById("enableSnapping") ? document.getElementById("enableSnapping").checked : true,
+                // Every bar's exact { dia, x, y, color } is saved here - the pattern-generator
+                // inputs (numX/numY/numCirc) are just a placement shortcut, not real geometry,
+                // so they're intentionally left out.
+                reinforcementLocations: circles
+            };
+
+            // Use shape-native dimensions instead of the internal maxX/maxY names - a circular
+            // section has no independent width (maxX is always forced equal to maxY), so it's
+            // described by a radius instead.
+            if (sectionType === "circular") {
+                sectionData.radius = maxY / 2;
+            } else {
+                sectionData.b = maxX;
+                sectionData.d = maxY;
+            }
+
+            const blob = new Blob([JSON.stringify(sectionData, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `mu-vs-pu-section-${sectionType}-${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Read a previously saved section file and hand it off for validation + loading
+        function loadSection(event) {
+            const file = event.target.files && event.target.files[0];
+            event.target.value = ""; // allow re-selecting the same file later
+
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                let data;
+                try {
+                    data = JSON.parse(e.target.result);
+                } catch (err) {
+                    alert("That file isn't valid JSON — the section couldn't be loaded.");
+                    return;
+                }
+
+                const reinforcementLocations = data && (data.reinforcementLocations || data.circles);
+                if (!data || (data.sectionType !== "rectangular" && data.sectionType !== "circular") || !Array.isArray(reinforcementLocations)) {
+                    alert("This doesn't look like a Mu vs Pu section file.");
+                    return;
+                }
+
+                applySection(data);
+            };
+            reader.onerror = function() {
+                alert("Could not read the selected file.");
+            };
+            reader.readAsText(file);
+        }
+
+        // Restore section shape, materials, geometry and reinforcement from a loaded section file.
+        // Any previously generated diagram is invalidated - the user re-generates it explicitly.
+        function applySection(data) {
+            sectionType = data.sectionType;
+            document.getElementById("shapeType").value = sectionType;
+
+            // Prefer the shape-native fields (b/d, radius); fall back to maxX/maxY for files
+            // saved before this rename.
+            if (sectionType === "circular") {
+                maxY = data.radius ? parseFloat(data.radius) * 2 : (parseInt(data.maxY) || 450);
+                maxX = maxY;
+            } else {
+                maxY = data.d ? parseInt(data.d) : (parseInt(data.maxY) || 450);
+                maxX = data.b ? parseInt(data.b) : (parseInt(data.maxX) || 350);
+            }
+            fck = parseFloat(data.fck) || 25;
+            fy = ["Fe250", "Fe415", "Fe500", "Fe550"].includes(data.fy) ? data.fy : "Fe415";
+            const cover = parseInt(data.cover) || 40;
+
+            document.getElementById("maxX").value = maxX;
+            document.getElementById("maxY").value = maxY;
+            document.getElementById("fck").value = fck;
+            document.getElementById("fy").value = fy;
+            document.getElementById("cover").value = cover;
+
+            if (data.dia) document.getElementById("dia").value = parseInt(data.dia) || 16;
+            if (data.color) {
+                document.getElementById("color").value = data.color;
+                document.getElementById("colorHex").textContent = String(data.color).toUpperCase();
+            }
+            document.getElementById("enableSnapping").checked = data.enableSnapping !== false;
+            if (data.numX) document.getElementById("numX").value = data.numX;
+            if (data.numY) document.getElementById("numY").value = data.numY;
+            if (data.numCirc) document.getElementById("numCirc").value = data.numCirc;
+
+            const reinforcementLocations = data.reinforcementLocations || data.circles; // "circles" supported for files saved before the rename
+            circles = reinforcementLocations.map(c => ({
+                dia: parseInt(c.dia) || 16,
+                x: parseFloat(c.x) || 0,
+                y: parseFloat(c.y) || 0,
+                color: typeof c.color === "string" ? c.color : "#3b82f6"
+            }));
+            selectedBarIndex = null;
+
+            profiles[sectionType] = { circles: [...circles], maxX, maxY, fck: String(fck), fy, cover };
+
+            const widthContainer = document.getElementById("widthInputContainer");
+            const depthLabel = document.getElementById("depthLabel");
+            const rectPattern = document.getElementById("rectPatternContainer");
+            const circPattern = document.getElementById("circPatternContainer");
+
+            if (sectionType === "circular") {
+                widthContainer.style.display = "none";
+                depthLabel.textContent = "Diameter (D, mm)";
+                rectPattern.style.display = "none";
+                circPattern.style.display = "block";
+            } else {
+                widthContainer.style.display = "block";
+                depthLabel.textContent = "Depth (D, mm)";
+                rectPattern.style.display = "grid";
+                circPattern.style.display = "none";
+            }
+
+            purgeDiagramState();
+            updateAll();
+        }
+
+        // Listen for hex color value change to show on screen
+        document.getElementById("color").addEventListener("input", function(e) {
+            document.getElementById("colorHex").textContent = e.target.value.toUpperCase();
+        });
+
+        // Toggle Theme
+        function toggleTheme() {
+            document.body.classList.toggle('light-theme');
+            const isLight = document.body.classList.contains('light-theme');
+            const themeIcon = document.getElementById('themeIcon');
+            if (isLight) {
+                themeIcon.innerHTML = `<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>`;
+            } else {
+                themeIcon.innerHTML = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>`;
+            }
+            debouncedUpdate();
+        }
+
+        // Tab Switching
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+            activeTab = tabId;
+
+            // Diagram calculation is manual (see generateDiagram) - just refresh the status banner here
+            updateDiagramStatusUI();
+        }
+
+        // Core calculation logic: Linear Strain Compatibility
+        const linearStrainCompatibilityInColumn = (d, Xu, x) => {
+            if (d === undefined || d === null || Xu === undefined || Xu === null || x === undefined || x === null) {
+                throw new Error("Values cannot be empty, null or undefined.");
+            }
+            if (isNaN(d) || isNaN(Xu) || isNaN(x)) {
+                throw new Error("All input values (d, Xu, x) must be numbers.");
+            }
+            if (d < 0 || Xu < 0 || x < 0) {
+                throw new Error("Values of d, Xu and x cannot be negative.");
+            }
+            if (d <= 0) {
+                throw new Error("d should be greater than zero.");
+            }
+
+            if (Xu <= d) {
+                return 0.0035 * (1 - (x / Xu));
+            } else {
+                return 0.002 * (Xu - x) / (Xu - (3 / 7) * d);
+            }
+        };
+
+        const stressInConcreteAtStrain = (strain) => {
+            if (strain >= 0 && strain <= 0.002) {
+                return 0.45 * fck * (2 * (strain / 0.002) - Math.pow((strain / 0.002), 2));
+            } else if (strain > 0.002 && strain <= 0.0035) {
+                return 0.45 * fck;
+            } else {
+                return 0; // tension ignored
+            }
+        };
+
+        // Interpolation helper
+        const interpolate = (s1, s2, e1, e2, e) => s1 - (s1 - s2) * (e1 - e) / (e1 - e2);
+
+        // Generalized Steel stress evaluation based on IS 456
+        const stressInSteelAtStrain = (strain) => {
+            const sign = strain < 0 ? -1 : 1;
+            const ε = Math.abs(strain);
+
+            if (fy === "Fe250") {
+                const yieldStrain = 0.87 * 250 / Est;
+                if (ε < yieldStrain) return sign * ε * Est;
+                return sign * 0.87 * 250;
+            } else if (fy === "Fe415") {
+                if (ε >= 0 && ε < 0.00144) return sign * Est * ε;
+                else if (ε >= 0.00144 && ε < 0.00163) return sign * interpolate(288.7, 306.7, 0.00144, 0.00163, ε);
+                else if (ε >= 0.00163 && ε < 0.00192) return sign * interpolate(306.7, 324.8, 0.00163, 0.00192, ε);
+                else if (ε >= 0.00192 && ε < 0.00241) return sign * interpolate(324.8, 342.8, 0.00192, 0.00241, ε);
+                else if (ε >= 0.00241 && ε < 0.00276) return sign * interpolate(342.8, 351.8, 0.00241, 0.00276, ε);
+                else if (ε >= 0.00276 && ε <= 0.00380) return sign * interpolate(351.8, 360.9, 0.00276, 0.00380, ε);
+                else return sign * 360.9;
+            } else if (fy === "Fe500") {
+                // Fe500 SP16 points
+                if (ε >= 0 && ε < 0.00174) return sign * Est * ε;
+                else if (ε >= 0.00174 && ε < 0.00195) return sign * interpolate(347.8, 369.6, 0.00174, 0.00195, ε);
+                else if (ε >= 0.00195 && ε < 0.00226) return sign * interpolate(369.6, 391.3, 0.00195, 0.00226, ε);
+                else if (ε >= 0.00226 && ε < 0.00277) return sign * interpolate(391.3, 413.0, 0.00226, 0.00277, ε);
+                else if (ε >= 0.00277 && ε < 0.00312) return sign * interpolate(413.0, 423.9, 0.00277, 0.00312, ε);
+                else if (ε >= 0.00312 && ε <= 0.00418) return sign * interpolate(423.9, 435.0, 0.00312, 0.00418, ε);
+                else return sign * 435.0;
+            } else if (fy === "Fe550") {
+                // Fe550 points
+                if (ε >= 0 && ε < 0.00191) return sign * Est * ε;
+                else if (ε >= 0.00191 && ε < 0.00215) return sign * interpolate(382.8, 406.5, 0.00191, 0.00215, ε);
+                else if (ε >= 0.00215 && ε < 0.00249) return sign * interpolate(406.5, 430.4, 0.00215, 0.00249, ε);
+                else if (ε >= 0.00249 && ε < 0.00305) return sign * interpolate(430.4, 454.3, 0.00249, 0.00305, ε);
+                else if (ε >= 0.00305 && ε < 0.00343) return sign * interpolate(454.3, 466.3, 0.00305, 0.00343, ε);
+                else if (ε >= 0.00343 && ε <= 0.00459) return sign * interpolate(466.3, 478.5, 0.00343, 0.00459, ε);
+                else return sign * 478.5;
+            }
+            return 0;
+        };
+
+        const getSectionWidthAtDepth = (y) => {
+            if (sectionType === "circular") {
+                const R = maxY / 2;
+                if (y < 0 || y > maxY) return 0;
+                return 2 * Math.sqrt(R * R - Math.pow(y - R, 2));
+            } else {
+                return maxX;
+            }
+        };
+
+        function calculateConcreteForceAndMoment(Xu) {
+            const dComp = Math.min(Xu, maxY);
+            if (dComp <= 0) return { CFc: 0, MORc: 0 };
+            
+            const N = 500;
+            const h = dComp / N;
+            
+            let forceIntegral = 0;
+            let momentIntegral = 0;
+            
+            for (let i = 0; i <= N; i++) {
+                const y = i * h;
+                const strain = linearStrainCompatibilityInColumn(maxY, Xu, y);
+                const stress = stressInConcreteAtStrain(strain);
+                const width = getSectionWidthAtDepth(y);
+                const f = stress * width;
+                const m = f * ((maxY / 2) - y);
+                
+                let coeff = 2;
+                if (i === 0 || i === N) coeff = 1;
+                else if (i % 2 === 1) coeff = 4;
+                
+                forceIntegral += coeff * f;
+                momentIntegral += coeff * m;
+            }
+            
+            return {
+                CFc: (forceIntegral * h / 3) * Math.pow(10, -3), // to kN
+                MORc: (momentIntegral * h / 3) * Math.pow(10, -6) // to kNm
+            };
+        }
+
+        function initSectionForXu(Xu) {
+            let data = [];
+            let CFs = 0;
+            let MORs = 0;
+
+            circles.forEach((e) => {
+                const strain = linearStrainCompatibilityInColumn(maxY, Xu, e.y);
+                const ast = (Math.PI / 4) * Math.pow(e.dia, 2);
+                const stressInConc = stressInConcreteAtStrain(strain);
+                const stressInSteel = stressInSteelAtStrain(strain);
+                const forceInConc = stressInConc * ast;
+                const forceInSteel = stressInSteel * ast;
+                const reducedForce = forceInSteel - forceInConc; // Subtract concrete displaced area force
+                const leverArm = ((maxY / 2) - e.y);
+                const MorOfSteel = forceInSteel * leverArm;
+                const MorOfConc = forceInConc * leverArm;
+                const reducedMOR = MorOfSteel - MorOfConc;
+
+                CFs += reducedForce;
+                MORs += reducedMOR;
+                data.push({ Xu, x: e.x, y: e.y, strain, ast, stressInConc, forceInConc, stressInSteel, forceInSteel, reducedForce, MorOfSteel, MorOfConc, reducedMOR, leverArm });
+            });
+
+            const concrete = calculateConcreteForceAndMoment(Xu);
+
+            const CF = concrete.CFc + CFs * Math.pow(10, -3); // to kN
+            const MOR = concrete.MORc + MORs * Math.pow(10, -6); // to kNm
+
+            return { Xu, CF, MOR, concrete, data };
+        }
+
+        // Draw Interactive SVG
+        function renderSectionSvg() {
+            const svg = document.getElementById("sectionSvg");
+            svg.innerHTML = "";
+
+            maxX = parseInt(document.getElementById("maxX").value) || 350;
+            maxY = parseInt(document.getElementById("maxY").value) || 450;
+            if (sectionType === "circular") {
+                maxX = maxY; // Circular columns have diameter D = maxY
+            }
+
+            const padding = 40;
+            const containerSize = 400;
+            const scale = Math.min((containerSize - 2 * padding) / maxX, (containerSize - 2 * padding) / maxY);
+            
+            const originX = (containerSize - maxX * scale) / 2;
+            const originY = (containerSize - maxY * scale) / 2;
+
+            const cover = parseInt(document.getElementById("cover").value) || 40;
+
+            // Click listener for concrete body
+            const onConcreteClick = (e) => {
+                if (isDragging) return;
+                const rect = svg.getBoundingClientRect();
+                const clickX = (e.clientX - rect.left) * (containerSize / rect.width);
+                const clickY = (e.clientY - rect.top) * (containerSize / rect.height);
+                
+                let realX = Math.round((clickX - originX) / scale);
+                let realY = Math.round((clickY - originY) / scale);
+
+                realX = snapCoordinate(realX, maxX, realY, maxY);
+                realY = snappedYGlobal;
+
+                const dia = parseInt(document.getElementById("dia").value) || 16;
+                const color = document.getElementById("color").value;
+
+                if (sectionType === "circular") {
+                    const R = maxY / 2;
+                    const dist = Math.sqrt(Math.pow(realX - R, 2) + Math.pow(realY - R, 2));
+                    if (dist <= R) {
+                        circles.push({ dia, x: realX, y: realY, color });
+                        updateAll();
+                    }
+                } else {
+                    if (realX >= 0 && realX <= maxX && realY >= 0 && realY <= maxY) {
+                        circles.push({ dia, x: realX, y: realY, color });
+                        updateAll();
+                    }
+                }
+            };
+
+            if (sectionType === "circular") {
+                const centerX = originX + (maxY / 2) * scale;
+                const centerY = originY + (maxY / 2) * scale;
+                const radius = (maxY / 2) * scale;
+
+                // Draw concrete circle
+                const concreteCirc = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                concreteCirc.setAttribute("cx", centerX);
+                concreteCirc.setAttribute("cy", centerY);
+                concreteCirc.setAttribute("r", radius);
+                concreteCirc.setAttribute("fill", "rgba(100, 116, 139, 0.15)");
+                concreteCirc.setAttribute("stroke", "var(--text-primary)");
+                concreteCirc.setAttribute("stroke-width", "2");
+                concreteCirc.addEventListener("click", onConcreteClick);
+                svg.appendChild(concreteCirc);
+
+                // Draw cover guideline circle
+                if (cover > 0 && cover < maxY / 2) {
+                    const coverCirc = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    coverCirc.setAttribute("cx", centerX);
+                    coverCirc.setAttribute("cy", centerY);
+                    coverCirc.setAttribute("r", radius - cover * scale);
+                    coverCirc.setAttribute("fill", "none");
+                    coverCirc.setAttribute("stroke", "var(--text-muted)");
+                    coverCirc.setAttribute("stroke-dasharray", "4");
+                    coverCirc.setAttribute("stroke-width", "1");
+                    svg.appendChild(coverCirc);
+                }
+            } else {
+                // Draw concrete core rectangle
+                const concreteRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                concreteRect.setAttribute("x", originX);
+                concreteRect.setAttribute("y", originY);
+                concreteRect.setAttribute("width", maxX * scale);
+                concreteRect.setAttribute("height", maxY * scale);
+                concreteRect.setAttribute("fill", "rgba(100, 116, 139, 0.15)");
+                concreteRect.setAttribute("stroke", "var(--text-primary)");
+                concreteRect.setAttribute("stroke-width", "2");
+                concreteRect.addEventListener("click", onConcreteClick);
+                svg.appendChild(concreteRect);
+
+                // Draw cover guideline rectangle
+                if (cover > 0 && cover < maxX / 2 && cover < maxY / 2) {
+                    const coverRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    coverRect.setAttribute("x", originX + cover * scale);
+                    coverRect.setAttribute("y", originY + cover * scale);
+                    coverRect.setAttribute("width", (maxX - 2 * cover) * scale);
+                    coverRect.setAttribute("height", (maxY - 2 * cover) * scale);
+                    coverRect.setAttribute("fill", "none");
+                    coverRect.setAttribute("stroke", "var(--text-muted)");
+                    coverRect.setAttribute("stroke-dasharray", "4");
+                    coverRect.setAttribute("stroke-width", "1");
+                    svg.appendChild(coverRect);
+                }
+            }
+
+            // Coordinate axes: origin (0,0) sits at the top-left of the section, X runs right, Y runs down
+            const axisColor = "var(--text-secondary)";
+            const axisExtend = 22; // px drawn into the padding beyond the section edges
+
+            const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+            const arrowMarker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+            arrowMarker.setAttribute("id", "axisArrow");
+            arrowMarker.setAttribute("markerWidth", "8");
+            arrowMarker.setAttribute("markerHeight", "8");
+            arrowMarker.setAttribute("refX", "6");
+            arrowMarker.setAttribute("refY", "3");
+            arrowMarker.setAttribute("orient", "auto");
+            const arrowHead = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            arrowHead.setAttribute("d", "M0,0 L0,6 L7,3 z");
+            arrowHead.setAttribute("fill", axisColor);
+            arrowMarker.appendChild(arrowHead);
+            defs.appendChild(arrowMarker);
+            svg.appendChild(defs);
+
+            const xAxisLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            xAxisLine.setAttribute("x1", originX);
+            xAxisLine.setAttribute("y1", originY);
+            xAxisLine.setAttribute("x2", originX + maxX * scale + axisExtend);
+            xAxisLine.setAttribute("y2", originY);
+            xAxisLine.setAttribute("stroke", axisColor);
+            xAxisLine.setAttribute("stroke-width", "1.5");
+            xAxisLine.setAttribute("marker-end", "url(#axisArrow)");
+            svg.appendChild(xAxisLine);
+
+            const yAxisLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            yAxisLine.setAttribute("x1", originX);
+            yAxisLine.setAttribute("y1", originY);
+            yAxisLine.setAttribute("x2", originX);
+            yAxisLine.setAttribute("y2", originY + maxY * scale + axisExtend);
+            yAxisLine.setAttribute("stroke", axisColor);
+            yAxisLine.setAttribute("stroke-width", "1.5");
+            yAxisLine.setAttribute("marker-end", "url(#axisArrow)");
+            svg.appendChild(yAxisLine);
+
+            const xAxisLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            xAxisLabel.setAttribute("x", originX + maxX * scale + axisExtend + 4);
+            xAxisLabel.setAttribute("y", originY + 4);
+            xAxisLabel.setAttribute("font-size", "11");
+            xAxisLabel.setAttribute("fill", axisColor);
+            xAxisLabel.textContent = "X";
+            svg.appendChild(xAxisLabel);
+
+            const yAxisLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            yAxisLabel.setAttribute("x", originX - 4);
+            yAxisLabel.setAttribute("y", originY + maxY * scale + axisExtend + 4);
+            yAxisLabel.setAttribute("font-size", "11");
+            yAxisLabel.setAttribute("fill", axisColor);
+            yAxisLabel.setAttribute("text-anchor", "end");
+            yAxisLabel.textContent = "Y";
+            svg.appendChild(yAxisLabel);
+
+            const originDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            originDot.setAttribute("cx", originX);
+            originDot.setAttribute("cy", originY);
+            originDot.setAttribute("r", "2.5");
+            originDot.setAttribute("fill", axisColor);
+            svg.appendChild(originDot);
+
+            const originLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            originLabel.setAttribute("x", originX - 6);
+            originLabel.setAttribute("y", originY - 6);
+            originLabel.setAttribute("font-size", "10");
+            originLabel.setAttribute("fill", axisColor);
+            originLabel.setAttribute("text-anchor", "end");
+            originLabel.textContent = "(0,0)";
+            svg.appendChild(originLabel);
+
+            // Snapping helper function
+            function snapCoordinate(valX, maxValX, valY, maxValY) {
+                const isSnapEnabled = document.getElementById("enableSnapping") ? document.getElementById("enableSnapping").checked : true;
+                if (!isSnapEnabled) {
+                    snappedYGlobal = valY;
+                    return valX;
+                }
+                
+                const cover = parseInt(document.getElementById("cover").value) || 40;
+                const threshold = 15; // snap if within 15mm of cover line or boundaries
+                const grid = 10; // otherwise snap to 10mm grid
+                
+                if (sectionType === "circular") {
+                    const R = maxValY / 2;
+                    const dx = valX - R;
+                    const dy = valY - R;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const R_cover = R - cover;
+
+                    if (Math.abs(dist - R_cover) < threshold && dist > 0) {
+                        const ratio = R_cover / dist;
+                        snappedYGlobal = Math.round(R + dy * ratio);
+                        return Math.round(R + dx * ratio);
+                    } else {
+                        snappedYGlobal = Math.round(valY / grid) * grid;
+                        return Math.round(valX / grid) * grid;
+                    }
+                } else {
+                    let snappedX = valX;
+                    let snappedY = valY;
+
+                    if (Math.abs(valX - cover) < threshold) {
+                        snappedX = cover;
+                    } else if (Math.abs(valX - (maxValX - cover)) < threshold) {
+                        snappedX = maxValX - cover;
+                    } else {
+                        snappedX = Math.round(valX / grid) * grid;
+                    }
+
+                    if (Math.abs(valY - cover) < threshold) {
+                        snappedY = cover;
+                    } else if (Math.abs(valY - (maxValY - cover)) < threshold) {
+                        snappedY = maxValY - cover;
+                    } else {
+                        snappedY = Math.round(valY / grid) * grid;
+                    }
+
+                    snappedYGlobal = snappedY;
+                    return snappedX;
+                }
+            }
+
+            // Handle SVG mouse movement to update coordinate label
+            svg.addEventListener("mousemove", function(e) {
+                const rect = svg.getBoundingClientRect();
+                const mouseX = (e.clientX - rect.left) * (containerSize / rect.width);
+                const mouseY = (e.clientY - rect.top) * (containerSize / rect.height);
+                
+                let realX = Math.round((mouseX - originX) / scale);
+                let realY = Math.round((mouseY - originY) / scale);
+
+                realX = snapCoordinate(realX, maxX, realY, maxY);
+                realY = snappedYGlobal;
+
+                if (sectionType === "circular") {
+                    const R = maxY / 2;
+                    const dist = Math.sqrt(Math.pow(realX - R, 2) + Math.pow(realY - R, 2));
+                    if (dist <= R) {
+                        document.getElementById("svgHoverInfo").textContent = `X: ${realX}mm | Y: ${realY}mm`;
+                    }
+                } else {
+                    if (realX >= 0 && realX <= maxX && realY >= 0 && realY <= maxY) {
+                        document.getElementById("svgHoverInfo").textContent = `X: ${realX}mm | Y: ${realY}mm`;
+                    }
+                }
+            });
+
+            // Draw rebars
+            circles.forEach((circle, index) => {
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                
+                const cx = originX + circle.x * scale;
+                const cy = originY + circle.y * scale;
+                const r = (circle.dia / 2) * scale;
+
+                c.setAttribute("cx", cx);
+                c.setAttribute("cy", cy);
+                c.setAttribute("r", Math.max(r, 4)); // minimum radius for visual selection
+                c.setAttribute("fill", circle.color);
+                c.setAttribute("stroke", selectedBarIndex === index ? "var(--text-primary)" : "rgba(0, 0, 0, 0.4)");
+                c.setAttribute("stroke-width", selectedBarIndex === index ? "3" : "1");
+                c.setAttribute("cursor", "move");
+                c.style.transition = "stroke-width 0.1s";
+
+                // Drag handlers
+                const onDrag = (ev) => {
+                    isDragging = true;
+                    const rect = svg.getBoundingClientRect();
+                    const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX;
+                    const clientY = ev.touches ? ev.touches[0].clientY : ev.clientY;
+                    
+                    const mX = (clientX - rect.left) * (containerSize / rect.width);
+                    const mY = (clientY - rect.top) * (containerSize / rect.height);
+                    
+                    let xVal = Math.max(0, Math.min(maxX, Math.round((mX - originX) / scale)));
+                    let yVal = Math.max(0, Math.min(maxY, Math.round((mY - originY) / scale)));
+
+                    circle.x = snapCoordinate(xVal, maxX, yVal, maxY);
+                    circle.y = snappedYGlobal;
+
+                    c.setAttribute("cx", originX + circle.x * scale);
+                    c.setAttribute("cy", originY + circle.y * scale);
+                    
+                    // Live stats update while dragging
+                    updateRebarTable();
+                };
+
+                const stopDrag = () => {
+                    window.removeEventListener("mousemove", onDrag);
+                    window.removeEventListener("mouseup", stopDrag);
+                    window.removeEventListener("touchmove", onDrag);
+                    window.removeEventListener("touchend", stopDrag);
+                    
+                    setTimeout(() => { isDragging = false; }, 50);
+                    updateAll();
+                };
+
+                c.addEventListener("mousedown", (ev) => {
+                    ev.stopPropagation();
+                    selectedBarIndex = index;
+                    renderSectionSvg();
+                    window.addEventListener("mousemove", onDrag);
+                    window.addEventListener("mouseup", stopDrag);
+                });
+
+                c.addEventListener("touchstart", (ev) => {
+                    ev.stopPropagation();
+                    selectedBarIndex = index;
+                    renderSectionSvg();
+                    window.addEventListener("touchmove", onDrag);
+                    window.addEventListener("touchend", stopDrag);
+                });
+
+                g.appendChild(c);
+                svg.appendChild(g);
+            });
+        }
+
+        // Quick presets helpers
+        function setDia(val) {
+            document.getElementById("dia").value = val;
+        }
+
+        function addFourCornerBars() {
+            const cover = parseInt(document.getElementById("cover").value) || 40;
+            const dia = parseInt(document.getElementById("dia").value) || 16;
+            const color = document.getElementById("color").value;
+            
+            if (sectionType === "circular") {
+                const R = maxY / 2;
+                const R_bar = R - cover;
+                circles.push({ dia, x: R, y: R - R_bar, color });
+                circles.push({ dia, x: R, y: R + R_bar, color });
+                circles.push({ dia, x: R - R_bar, y: R, color });
+                circles.push({ dia, x: R + R_bar, y: R, color });
+            } else {
+                circles.push({ dia, x: cover, y: cover, color });
+                circles.push({ dia, x: maxX - cover, y: cover, color });
+                circles.push({ dia, x: cover, y: maxY - cover, color });
+                circles.push({ dia, x: maxX - cover, y: maxY - cover, color });
+            }
+            
+            updateAll();
+        }
+
+        // Delete Rebar listener on backspace/delete key
+        window.addEventListener("keydown", function(e) {
+            if ((e.key === "Delete" || e.key === "Backspace") && selectedBarIndex !== null) {
+                circles.splice(selectedBarIndex, 1);
+                selectedBarIndex = null;
+                updateAll();
+            }
+        });
+
+        // Add Single Rebar via Manual input
+        function addSingleRebar() {
+            const dia = parseInt(document.getElementById("dia").value) || 16;
+            const x = parseInt(document.getElementById("rebarX").value) || 0;
+            const y = parseInt(document.getElementById("rebarY").value) || 0;
+            const color = document.getElementById("color").value;
+
+            if (x >= 0 && x <= maxX && y >= 0 && y <= maxY) {
+                circles.push({ dia, x, y, color });
+                updateAll();
+            } else {
+                alert("Rebar coordinates must sit inside the column bounds.");
+            }
+        }
+
+        // Generate perimeter pattern
+        function generatePerimeterPattern() {
+            const cover = parseInt(document.getElementById("cover").value) || 40;
+            const dia = parseInt(document.getElementById("dia").value) || 16;
+            const color = document.getElementById("color").value;
+            const append = document.getElementById("appendPattern") ? document.getElementById("appendPattern").checked : false;
+
+            if (!append) {
+                circles = []; // Reset existing only if not appending
+            }
+
+            if (sectionType === "circular") {
+                const numBars = parseInt(document.getElementById("numCirc").value) || 8;
+                const R = maxY / 2;
+                const R_bar = R - cover;
+                for (let i = 0; i < numBars; i++) {
+                    const theta = (i * 2 * Math.PI) / numBars;
+                    const x = Math.round(R + R_bar * Math.cos(theta));
+                    const y = Math.round(R + R_bar * Math.sin(theta));
+                    circles.push({ dia, x, y, color });
+                }
+            } else {
+                const numX = parseInt(document.getElementById("numX").value) || 3;
+                const numY = parseInt(document.getElementById("numY").value) || 3;
+                const startX = cover;
+                const endX = maxX - cover;
+                const startY = cover;
+                const endY = maxY - cover;
+
+                const stepX = numX > 1 ? (endX - startX) / (numX - 1) : 0;
+                const stepY = numY > 1 ? (endY - startY) / (numY - 1) : 0;
+
+                // Generate bars along top and bottom faces
+                for (let i = 0; i < numX; i++) {
+                    circles.push({ dia, x: Math.round(startX + i * stepX), y: startY, color });
+                    circles.push({ dia, x: Math.round(startX + i * stepX), y: endY, color });
+                }
+
+                // Generate intermediate bars along sides (excluding corners already added)
+                for (let j = 1; j < numY - 1; j++) {
+                    circles.push({ dia, x: startX, y: Math.round(startY + j * stepY), color });
+                    circles.push({ dia, x: endX, y: Math.round(startY + j * stepY), color });
+                }
+            }
+
+            updateAll();
+        }
+
+        // Clear all reinforcement
+        function clearAllRebars() {
+            circles = [];
+            selectedBarIndex = null;
+            purgeDiagramState(); // clearing is instant/cheap - no need to wait for a manual Generate click
+            updateAll();
+        }
+
+        // Delete specific rebar from table list
+        function deleteRebar(index) {
+            circles.splice(index, 1);
+            if (selectedBarIndex === index) selectedBarIndex = null;
+            updateAll();
+        }
+
+        // Update tables and sidebar details
+        function updateRebarTable() {
+            const tbody = document.getElementById("rebarTableBody");
+            tbody.innerHTML = "";
+            let totalAst = 0;
+
+            circles.forEach((circle, index) => {
+                const ast = (Math.PI / 4) * Math.pow(circle.dia, 2);
+                totalAst += ast;
+
+                const tr = document.createElement("tr");
+                tr.style.backgroundColor = selectedBarIndex === index ? "rgba(59, 130, 246, 0.1)" : "";
+                tr.innerHTML = `
+                    <td><span style="color: ${circle.color}; font-size: 1.2rem;">●</span></td>
+                    <td>${circle.dia}</td>
+                    <td>${circle.x}</td>
+                    <td>${circle.y}</td>
+                    <td><button class="delete-btn" onclick="deleteRebar(${index})">Delete</button></td>
+                `;
+                tr.addEventListener("click", () => {
+                    selectedBarIndex = index;
+                    renderSectionSvg();
+                });
+                tbody.appendChild(tr);
+            });
+
+            // Calculate concrete cross section area
+            const Ag = sectionType === "circular" ? (Math.PI / 4) * maxY * maxY : maxX * maxY;
+            const pt = (totalAst / Ag) * 100;
+
+            document.getElementById("statAst").textContent = `${Math.round(totalAst)} mm²`;
+            document.getElementById("statRatio").textContent = `${pt.toFixed(2)}%`;
+        }
+
+        let curveX = [];
+        let curveY = [];
+        let designCheckPoint = null; // { Pu, Mu, safe } - user-entered point to verify against the curve
+        let diagramsStale = false; // true once geometry/reinforcement changes after a diagram has been generated
+
+        // Reset the interaction diagram, profile plots, data table and design check to an empty state.
+        // Cheap and instant - used when reinforcement is cleared, unlike the full curve calculation.
+        function purgeDiagramState() {
+            curveX = [];
+            curveY = [];
+            calculatedCurve = [];
+            diagramsStale = false;
+
+            Plotly.purge("plotlyPlot");
+            Plotly.purge("strainProfilePlot");
+            Plotly.purge("stressProfilePlot");
+
+            document.getElementById("profileXu").textContent = "- mm";
+            document.getElementById("profilePu").textContent = "- kN";
+            document.getElementById("profileMu").textContent = "- kNm";
+
+            document.getElementById("dataPointsTableBody").innerHTML = "";
+
+            designCheckPoint = null;
+            const resultEl = document.getElementById("checkResult");
+            if (resultEl) {
+                resultEl.className = "check-result-badge";
+                resultEl.textContent = "Enter Pu & Mu to verify";
+            }
+        }
+
+        // Reflect current diagram state (empty / stale / fresh) in the status banners and Generate buttons.
+        // The heavy interaction-diagram calculation only ever runs from an explicit user action (Generate
+        // Diagram / Check Point) - this function never triggers it, it only describes whether it's needed.
+        function updateDiagramStatusUI() {
+            const hasCurve = calculatedCurve.length > 0;
+            const state = !hasCurve ? 'empty' : (diagramsStale ? 'stale' : 'fresh');
+
+            document.querySelectorAll('.diagram-status-banner').forEach(el => {
+                el.classList.remove('empty', 'stale', 'fresh');
+                el.classList.add(state);
+                el.textContent = state === 'empty'
+                    ? (circles.length === 0
+                        ? 'Add reinforcement, then click Generate Diagram to compute the Mu-Pu interaction curve.'
+                        : 'Click Generate Diagram to compute the Mu-Pu interaction curve.')
+                    : state === 'stale'
+                        ? 'Inputs changed since the last calculation — click Refresh Diagram to update it.'
+                        : '';
+            });
+
+            document.querySelectorAll('.generate-diagram-btn').forEach(btn => {
+                btn.textContent = state === 'stale' ? 'Refresh Diagram' : 'Generate Diagram';
+            });
+
+            const axisGroupEl = document.getElementById("checkAxisGroup");
+            if (axisGroupEl) axisGroupEl.style.display = sectionType === "circular" ? "none" : "";
+
+            const tableAxisEl = document.getElementById("tableAxis");
+            if (tableAxisEl) tableAxisEl.style.display = sectionType === "circular" ? "none" : "";
+        }
+
+        // Perform interaction diagram calculation for a specific geometry
+        function calculateInteractionDiagramForSection(w, d, bars) {
+            let curve = [];
+            const divisions = dataPoints;
+            
+            // Temporary replacement of globals during calculation to keep codebase clean
+            const originalMaxX = maxX;
+            const originalMaxY = maxY;
+            const originalCircles = circles;
+            
+            maxX = w;
+            maxY = d;
+            circles = bars;
+            
+            for (let i = divisions; i >= -divisions / 5; i--) {
+                let XuVal;
+                if (i > divisions * 0.8) {
+                    XuVal = maxY + (i - divisions * 0.8) * (9 * maxY) / (divisions * 0.2);
+                } else if (i >= 0) {
+                    XuVal = 0.05 * maxY + i * (0.95 * maxY) / (divisions * 0.8);
+                } else {
+                    XuVal = 0.01 * maxY + (i + divisions/5) * (0.04 * maxY) / (divisions/5);
+                }
+
+                const roundedXu = Math.round(XuVal * 10) / 10;
+                try {
+                    const dataPoint = initSectionForXu(roundedXu);
+                    if (!isNaN(dataPoint.CF) && !isNaN(dataPoint.MOR)) {
+                        curve.push(dataPoint);
+                    }
+                } catch(e) {
+                    // Skip invalid points
+                }
+            }
+            
+            // Restore globals
+            maxX = originalMaxX;
+            maxY = originalMaxY;
+            circles = originalCircles;
+            
+            return curve;
+        }
+
+        // Plotly diagram render and interactivity setup
+        // Heavy step: runs the strain-compatibility integration for every Xu sample on both axes.
+        // Only ever called from an explicit user action (Generate/Refresh Diagram, Check Point) -
+        // never automatically on every input change, since it's the expensive part of the app.
+        function computeCurves() {
+            // Run 1: Bending about X-axis (D in compression)
+            curveX = calculateInteractionDiagramForSection(maxX, maxY, circles);
+            calculatedCurve = curveX; // Table data follows major axis (X-axis)
+
+            // Run 2: Bending about Y-axis (b in compression)
+            if (sectionType === "rectangular") {
+                const swappedBars = circles.map(c => ({ ...c, x: c.y, y: c.x }));
+                curveY = calculateInteractionDiagramForSection(maxY, maxX, swappedBars);
+            } else {
+                curveY = [];
+            }
+
+            diagramsStale = false;
+        }
+
+        // Cheap step: (re)draws the Plotly chart, profile plots and data table from whatever is
+        // currently in curveX/curveY/designCheckPoint, without recomputing the curves themselves.
+        function renderDiagramPlot() {
+            const MuX = curveX.map(pt => pt.MOR);
+            const PuX = curveX.map(pt => pt.CF);
+
+            const isDark = !document.body.classList.contains('light-theme');
+            const textColor = isDark ? '#f3f4f6' : '#0f172a';
+            const gridColor = isDark ? '#2d3748' : '#e2e8f0';
+            const paperBg = isDark ? '#161b26' : '#ffffff';
+
+            const plotData = [{
+                x: MuX,
+                y: PuX,
+                mode: 'lines+markers',
+                type: 'scatter',
+                name: sectionType === "circular" ? 'Capacity Envelope' : 'Bending about X-axis (D / maxY)',
+                marker: { size: 3, color: '#3b82f6' },
+                line: { shape: 'spline', color: '#3b82f6', width: 2.5 },
+                hovertemplate: 'Mu: %{x:.1f} kNm<br>Pu: %{y:.1f} kN<extra></extra>'
+            }];
+
+            if (sectionType === "rectangular" && curveY.length > 0) {
+                const MuY = curveY.map(pt => pt.MOR);
+                const PuY = curveY.map(pt => pt.CF);
+                plotData.push({
+                    x: MuY,
+                    y: PuY,
+                    mode: 'lines+markers',
+                    type: 'scatter',
+                    name: 'Bending about Y-axis (b / maxX)',
+                    marker: { size: 3, color: '#10b981' },
+                    line: { shape: 'spline', color: '#10b981', width: 2.5 },
+                    hovertemplate: 'Mu: %{x:.1f} kNm<br>Pu: %{y:.1f} kN<extra></extra>'
+                });
+            }
+
+            if (designCheckPoint) {
+                const status = evaluateDesignCheckPoint();
+                const markerColor = status.safe ? '#10b981' : '#ef4444';
+                plotData.push({
+                    x: [designCheckPoint.Mu],
+                    y: [designCheckPoint.Pu],
+                    mode: 'markers',
+                    type: 'scatter',
+                    name: 'Design Point',
+                    marker: { size: 18, color: markerColor, symbol: 'star', line: { width: 1.5, color: textColor } },
+                    hovertemplate: `Design Point<br>Mu: ${designCheckPoint.Mu} kNm<br>Pu: ${designCheckPoint.Pu} kN<extra></extra>`
+                });
+            }
+
+            const layout = {
+                paper_bgcolor: paperBg,
+                plot_bgcolor: paperBg,
+                xaxis: {
+                    title: { text: "Moment Mu (kNm)", font: { color: textColor, family: 'Plus Jakarta Sans' } },
+                    gridcolor: gridColor,
+                    tickfont: { color: textColor }
+                },
+                yaxis: {
+                    title: { text: "Axial Force Pu (kN)", font: { color: textColor, family: 'Plus Jakarta Sans' } },
+                    gridcolor: gridColor,
+                    tickfont: { color: textColor }
+                },
+                margin: { t: 40, r: 20, l: 65, b: 50 },
+                hovermode: 'closest',
+                legend: {
+                    font: { color: textColor },
+                    orientation: 'h',
+                    x: 0.5,
+                    xanchor: 'center',
+                    y: 1.12,
+                    yanchor: 'bottom'
+                }
+            };
+
+            const plotEl = document.getElementById("plotlyPlot");
+            Plotly.newPlot(plotEl, plotData, layout, { responsive: true });
+
+            // Set up hover interactivity: plot concrete stress/strain on hover depending on curve
+            plotEl.on('plotly_hover', function(data) {
+                if (data.points.length > 0) {
+                    const curveNum = data.points[0].curveNumber;
+                    const pointIndex = data.points[0].pointIndex;
+                    
+                    if (curveNum === 0 && curveX[pointIndex]) {
+                        renderStrainAndStressProfiles(curveX[pointIndex], maxY);
+                    } else if (curveNum === 1 && curveY[pointIndex]) {
+                        renderStrainAndStressProfiles(curveY[pointIndex], maxX);
+                    }
+                }
+            });
+
+            // Load initial profiles matching the balanced point or peak moment point of major axis
+            if (calculatedCurve.length > 0) {
+                let peakIndex = 0;
+                let maxMu = 0;
+                calculatedCurve.forEach((pt, idx) => {
+                    if (pt.MOR > maxMu) {
+                        maxMu = pt.MOR;
+                        peakIndex = idx;
+                    }
+                });
+                renderStrainAndStressProfiles(calculatedCurve[peakIndex], maxY);
+            }
+
+            // Update main details table
+            updateDataTable();
+        }
+
+        // Manual trigger (Generate/Refresh Diagram button) - the only place computeCurves() gets
+        // called in response to geometry/reinforcement changes. Nothing recalculates automatically.
+        function generateDiagram() {
+            if (circles.length === 0) {
+                purgeDiagramState();
+                updateDiagramStatusUI();
+                return;
+            }
+
+            computeCurves();
+            renderDiagramPlot();
+            updateDiagramStatusUI();
+        }
+
+        // Find the moment capacity envelope at a given axial load Pu.
+        // The curve is walked in its native Xu order (NOT sorted by Pu) because Pu(Xu) is only
+        // approximately monotonic - numerical kinks (steel bilinear breakpoints, the Xu<=D / Xu>D
+        // strain-formula switch) can make the same Pu bracket more than one segment. Every bracketing
+        // segment is interpolated and the largest Mu among them is returned, since that outer boundary
+        // is the true capacity at that Pu - not just whichever segment happens to sort first.
+        function findCapacityAtPu(curve, Pu) {
+            if (!curve || curve.length < 2) return null;
+
+            let capacityMu = null;
+            for (let i = 0; i < curve.length - 1; i++) {
+                const a = curve[i], b = curve[i + 1];
+                const lo = Math.min(a.CF, b.CF), hi = Math.max(a.CF, b.CF);
+                if (Pu < lo || Pu > hi) continue;
+
+                const interpMu = (a.CF === b.CF)
+                    ? Math.max(a.MOR, b.MOR)
+                    : a.MOR + (Pu - a.CF) / (b.CF - a.CF) * (b.MOR - a.MOR);
+
+                if (capacityMu === null || interpMu > capacityMu) capacityMu = interpMu;
+            }
+            return capacityMu;
+        }
+
+        // Evaluate the currently stored design point against the current capacity curves,
+        // updating the result badge. Returns { safe, capacityMu } for marker styling.
+        function evaluateDesignCheckPoint() {
+            const resultEl = document.getElementById("checkResult");
+            const { Pu, Mu, axis } = designCheckPoint;
+            const curve = (sectionType === "circular" || axis === "x") ? curveX : curveY;
+
+            if (!curve || curve.length === 0) {
+                if (resultEl) {
+                    resultEl.className = "check-result-badge";
+                    resultEl.textContent = "Add reinforcement to generate a capacity curve first";
+                }
+                return { safe: false, capacityMu: null };
+            }
+
+            const capacityMu = findCapacityAtPu(curve, Pu);
+
+            if (capacityMu === null) {
+                if (resultEl) {
+                    resultEl.className = "check-result-badge unsafe";
+                    resultEl.textContent = `Pu = ${Pu} kN is outside the section's axial capacity range`;
+                }
+                return { safe: false, capacityMu: null };
+            }
+
+            const safe = Mu <= capacityMu;
+            const utilization = capacityMu !== 0 ? (Mu / capacityMu) * 100 : 0;
+
+            if (resultEl) {
+                resultEl.className = `check-result-badge ${safe ? 'safe' : 'unsafe'}`;
+                resultEl.textContent = safe
+                    ? `SAFE — Capacity Mu = ${capacityMu.toFixed(1)} kNm (${utilization.toFixed(0)}% utilized)`
+                    : `UNSAFE — Capacity Mu = ${capacityMu.toFixed(1)} kNm (demand exceeds capacity by ${(utilization - 100).toFixed(0)}%)`;
+            }
+
+            return { safe, capacityMu };
+        }
+
+        // Verify a user-supplied design point (Pu, Mu) against the calculated capacity envelope
+        function checkDesignPoint() {
+            const resultEl = document.getElementById("checkResult");
+            const Pu = parseFloat(document.getElementById("checkPu").value);
+            const Mu = parseFloat(document.getElementById("checkMu").value);
+
+            if (isNaN(Pu) || isNaN(Mu)) {
+                resultEl.className = "check-result-badge";
+                resultEl.textContent = "Enter valid Pu & Mu values";
+                designCheckPoint = null;
+                if (calculatedCurve.length > 0) renderDiagramPlot();
+                return;
+            }
+
+            const axis = document.getElementById("checkAxis").value;
+
+            // Only recompute the curves here if they're missing or out of date - checking a point
+            // shouldn't force a fresh calculation every time if nothing about the geometry has changed.
+            if (circles.length > 0 && (diagramsStale || calculatedCurve.length === 0)) {
+                computeCurves();
+            }
+
+            designCheckPoint = { Pu, Mu, axis };
+
+            if (circles.length === 0) {
+                evaluateDesignCheckPoint();
+                updateDiagramStatusUI();
+                return;
+            }
+
+            renderDiagramPlot();
+            updateDiagramStatusUI();
+        }
+
+        // Draw Strain and Stress profiles at current Xu
+        function renderStrainAndStressProfiles(ptData, activeDepth) {
+            const currentDepth = activeDepth || maxY;
+            document.getElementById("profileXu").textContent = `${ptData.Xu.toFixed(0)} mm`;
+            document.getElementById("profilePu").textContent = `${ptData.CF.toFixed(1)} kN`;
+            document.getElementById("profileMu").textContent = `${ptData.MOR.toFixed(1)} kNm`;
+
+            const isDark = !document.body.classList.contains('light-theme');
+            const textColor = isDark ? '#f3f4f6' : '#0f172a';
+            const gridColor = isDark ? '#2d3748' : '#e2e8f0';
+            const paperBg = isDark ? '#0b0f19' : '#f8fafc';
+
+            const depthPoints = [];
+            const strainPoints = [];
+            const stressPoints = [];
+
+            // Sample points along the active depth
+            for (let y = 0; y <= currentDepth; y += currentDepth / 100) {
+                depthPoints.push(y);
+                const strain = linearStrainCompatibilityInColumn(currentDepth, ptData.Xu, y);
+                strainPoints.push(strain);
+                stressPoints.push(stressInConcreteAtStrain(strain));
+            }
+
+            // Strain Plot
+            const strainTrace = {
+                x: strainPoints,
+                y: depthPoints,
+                mode: 'lines',
+                line: { color: '#8b5cf6', width: 3 },
+                fill: 'tozerox',
+                fillcolor: 'rgba(139, 92, 246, 0.15)'
+            };
+
+            const strainLayout = {
+                title: { text: `Strain Profile (Depth: ${currentDepth}mm)`, font: { color: textColor, size: 11 } },
+                paper_bgcolor: paperBg,
+                plot_bgcolor: paperBg,
+                xaxis: { gridcolor: gridColor, tickfont: { color: textColor, size: 10 }, tickformat: '.3f', tickangle: 0, nticks: 4, automargin: true },
+                yaxis: { autorange: 'reversed', gridcolor: gridColor, tickfont: { color: textColor }, title: "Depth (mm)" },
+                margin: { t: 40, r: 15, l: 45, b: 40 }
+            };
+
+            Plotly.newPlot("strainProfilePlot", [strainTrace], strainLayout, { staticPlot: true, responsive: true });
+
+            // Stress Plot
+            const stressTrace = {
+                x: stressPoints,
+                y: depthPoints,
+                mode: 'lines',
+                line: { color: '#10b981', width: 3 },
+                fill: 'tozerox',
+                fillcolor: 'rgba(16, 185, 129, 0.15)'
+            };
+
+            const stressLayout = {
+                title: { text: "Concrete Stress (MPa)", font: { color: textColor, size: 11 } },
+                paper_bgcolor: paperBg,
+                plot_bgcolor: paperBg,
+                xaxis: { gridcolor: gridColor, tickfont: { color: textColor, size: 10 }, tickangle: 0, nticks: 4, automargin: true },
+                yaxis: { autorange: 'reversed', gridcolor: gridColor, tickfont: { color: textColor } },
+                margin: { t: 40, r: 15, l: 30, b: 40 }
+            };
+
+            Plotly.newPlot("stressProfilePlot", [stressTrace], stressLayout, { staticPlot: true, responsive: true });
+        }
+
+        // Render calculated points list inside Tab 3 Table
+        function updateDataTable() {
+            const tbody = document.getElementById("dataPointsTableBody");
+            tbody.innerHTML = "";
+
+            const axisSelect = document.getElementById("tableAxis");
+            const axis = axisSelect ? axisSelect.value : "x";
+            const curve = (sectionType === "circular" || axis === "x") ? curveX : curveY;
+            const depth = (sectionType === "circular" || axis === "x") ? maxY : maxX;
+
+            curve.forEach(pt => {
+                const tr = document.createElement("tr");
+                const xud = (pt.Xu / depth).toFixed(3);
+                const ecc = pt.CF !== 0 ? (pt.MOR * 1000 / pt.CF).toFixed(1) : "∞";
+
+                tr.innerHTML = `
+                    <td>${xud}</td>
+                    <td>${pt.Xu.toFixed(1)}</td>
+                    <td>${pt.CF.toFixed(2)}</td>
+                    <td>${pt.MOR.toFixed(2)}</td>
+                    <td>${ecc}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Export data to CSV file
+        function exportToCSV() {
+            const axisSelect = document.getElementById("tableAxis");
+            const axis = axisSelect ? axisSelect.value : "x";
+            const curve = (sectionType === "circular" || axis === "x") ? curveX : curveY;
+            const depth = (sectionType === "circular" || axis === "x") ? maxY : maxX;
+
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Xu/d Ratio,Neutral Axis Xu (mm),Axial Force Pu (kN),Bending Moment Mu (kNm),Eccentricity e (mm)\n";
+
+            curve.forEach(pt => {
+                const xud = (pt.Xu / depth).toFixed(3);
+                const ecc = pt.CF !== 0 ? (pt.MOR * 1000 / pt.CF).toFixed(1) : "∞";
+                csvContent += `${xud},${pt.Xu.toFixed(1)},${pt.CF.toFixed(2)},${pt.MOR.toFixed(2)},${ecc}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `column_interaction_curve_${axis === "y" && sectionType !== "circular" ? "y-axis" : "x-axis"}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Realtime update triggers
+        function updateAll() {
+            fck = parseFloat(document.getElementById("fck").value);
+            fy = document.getElementById("fy").value;
+
+            renderSectionSvg();
+            updateRebarTable();
+
+            // The interaction diagram is NOT recalculated here - that's a costly integration over
+            // hundreds of Xu samples on two axes, so it only runs when the user clicks Generate/Refresh
+            // Diagram (or Check Point). Here we just flag it as out of date if one already exists.
+            if (calculatedCurve.length > 0) {
+                diagramsStale = true;
+            }
+            updateDiagramStatusUI();
+        }
+
+        let debounceTimer;
+        function debouncedUpdate() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(updateAll, 200);
+        }
+
+        // Initial setup on window load
+        window.onload = function() {
+            updateAll();
+        };
+    </script>
+</body>
+
+</html>
