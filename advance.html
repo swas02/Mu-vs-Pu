@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mu vs Pu – 3D Biaxial Failure Envelope</title>
+    <title>Mu vs Pu – Section Capacity & Step Inspector</title>
     <script src="./plotly-latest.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,109 +11,61 @@
     <link rel="stylesheet" href="./css/styles.css">
 
     <style>
-        /* ── Loading overlay ───────────────────────────────── */
-        .loading-overlay {
-            position:absolute; inset:0; z-index:100;
-            background:rgba(11,15,25,0.88);
-            backdrop-filter:blur(10px);
-            display:flex; flex-direction:column;
-            align-items:center; justify-content:center;
-            border-radius:.75rem; color:var(--text-primary);
+        .preset-btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.4rem;
+            margin-top: 0.5rem;
         }
-        .light-theme .loading-overlay { background:rgba(248,250,252,0.88); }
-        .spinner {
-            width:44px; height:44px;
-            border:4px solid var(--border-color);
-            border-top-color:var(--accent-color);
-            border-radius:50%; animation:spin 1s linear infinite; margin-bottom:1rem;
+        .step-input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
         }
-        @keyframes spin { to { transform:rotate(360deg); } }
-        .prog-wrap {
-            width:200px; height:7px;
-            background:var(--bg-tertiary); border-radius:10px;
-            overflow:hidden; margin-top:.5rem;
+        .json-box {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.65rem;
+            padding: 0.85rem;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            line-height: 1.45;
+            color: var(--text-primary);
+            overflow: auto;
+            max-height: 180px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-        .prog-fill {
-            height:100%; width:0;
-            background:linear-gradient(90deg,var(--accent-color),#8b5cf6);
-            transition:width .08s ease;
+        .phase-badge-box {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.45rem;
+            padding: 0.5rem 0.65rem;
+            margin-top: 0.6rem;
+            font-size: 0.75rem;
         }
-
-        /* ── Single-plot container ─────────────────────────── */
-        .plot-card {
-            flex:1; display:flex; flex-direction:column;
-            overflow:hidden; position:relative;
+        .phase-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.25rem;
         }
-
-        /* ── Meta table ────────────────────────────────────── */
-        .meta-table { width:100%; border-collapse:collapse; font-size:.84rem; margin-bottom:1.2rem; }
-        .meta-table td { padding:.42rem 0; border-bottom:1px dashed var(--border-color); }
-        .meta-table td.v { text-align:right; font-family:var(--font-mono); font-weight:600; color:var(--accent-color); }
-
-        /* ── Live-values panel ─────────────────────────────── */
-        #livePanel {
-            display:none; /* shown only in process mode */
-            background:var(--bg-secondary);
-            border:1px solid var(--border-color);
-            border-radius:.65rem; padding:.85rem .95rem;
-            margin-bottom:1rem; font-size:.82rem;
-        }
-        .lv-title {
-            font-weight:700; font-size:.78rem; letter-spacing:.08em;
-            text-transform:uppercase; color:var(--text-secondary);
-            margin-bottom:.6rem;
-        }
-        .lv-row {
-            display:flex; justify-content:space-between; align-items:center;
-            padding:.28rem 0; border-bottom:1px solid var(--border-color);
-        }
-        .lv-row:last-child { border-bottom:none; }
-        .lv-label { color:var(--text-secondary); }
-        .lv-val {
-            font-family:var(--font-mono); font-weight:600;
-            color:var(--accent-color); min-width:80px; text-align:right;
-            transition:color .15s;
-        }
-        .lv-divider {
-            height:1px; background:var(--border-color);
-            margin:.4rem 0;
-        }
-        .mini-bar-wrap {
-            height:4px; background:var(--bg-tertiary); border-radius:4px;
-            overflow:hidden; margin-top:.5rem; margin-bottom:.2rem;
-        }
-        .mini-bar-fill {
-            height:100%; width:0%;
-            background:linear-gradient(90deg,#3b82f6,#8b5cf6);
-            transition:width .08s linear;
-        }
-        .mini-bar-fill.xu-bar { background:linear-gradient(90deg,#10b981,#3b82f6); }
-
-        /* ── Controls row ──────────────────────────────────── */
-        .ctrl-row { display:flex; gap:.5rem; align-items:center; margin-bottom:.6rem; flex-wrap:wrap; }
-        .speed-wrap { display:flex; align-items:center; gap:.4rem; font-size:.8rem; color:var(--text-secondary); margin-top:.5rem; }
-        .speed-wrap input[type=range] { flex:1; accent-color:var(--accent-color); }
-        .tag-chip {
-            display:inline-block; padding:.15rem .5rem; border-radius:.3rem;
-            font-size:.75rem; font-weight:600; background:var(--bg-tertiary);
-            border:1px solid var(--border-color); color:var(--text-secondary);
-        }
+        .phase-label { color: var(--text-muted); }
+        .phase-val { font-weight: 700; color: var(--accent-color); font-family: var(--font-mono); }
     </style>
 </head>
 
 <body>
-<!-- ══════════════════════════════════════════════════════════════════
-     SIDEBAR
-══════════════════════════════════════════════════════════════════════ -->
 <div class="sidebar">
     <div class="sidebar-header">
         <h1>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
                 <polyline points="2 17 12 22 22 17"></polyline>
                 <polyline points="2 12 12 17 22 12"></polyline>
             </svg>
-            3D Failure Surface
+            Capacity & Step Inspector
         </h1>
         <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
             <svg id="themeIcon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -123,13 +75,12 @@
     </div>
 
     <div class="sidebar-content">
-        <!-- Back Navigation -->
         <a href="./index.html" class="btn btn-secondary back-nav-btn">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
             Back to Editor
         </a>
 
-        <!-- 1. Section Details Card -->
+        <!-- Section Details Card -->
         <div class="sidebar-card">
             <div class="card-mini-header">
                 <span class="card-mini-title">Section Parameters</span>
@@ -144,106 +95,75 @@
             </div>
         </div>
 
-        <!-- 2. View Mode & Filters Card -->
+        <!-- Step Phase & Animation Controller Card -->
         <div class="sidebar-card">
             <div class="card-mini-header">
-                <span class="card-mini-title">Capacity Surface View Mode</span>
+                <span class="card-mini-title">Step Animation Engine</span>
+                <span id="animStepBadge" class="tag-chip">Step 1 / 1080 (0.1%)</span>
             </div>
 
-            <div class="radio-group">
-                <label class="custom-radio">
-                    <input type="radio" name="surfaceViewMode" value="full" checked onchange="handleViewModeChange('full')">
-                    <span class="radio-circle"></span>
-                    <span class="radio-text">3D Biaxial Failure Envelope (Full Surface)</span>
-                </label>
-
-                <label class="custom-radio" style="margin-top:0.45rem;">
-                    <input type="radio" name="surfaceViewMode" value="single" onchange="handleViewModeChange('single')">
-                    <span class="radio-circle"></span>
-                    <span class="radio-text">2D Planar Capacity Curve (Specific Angle θ)</span>
-                </label>
+            <!-- Animation Controls Row -->
+            <div style="display:flex; gap:0.35rem; margin-bottom:0.6rem;">
+                <button id="animPlayPauseBtn" class="btn btn-primary" onclick="togglePlayPauseAnimation()" style="flex:1;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Play
+                </button>
+                <button class="btn btn-secondary" onclick="stepBackwardAnimation()" title="Step Backward" style="width:38px; padding:0; display:flex; align-items:center; justify-content:center;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
+                </button>
+                <button class="btn btn-secondary" onclick="stepForwardAnimation()" title="Step Forward" style="width:38px; padding:0; display:flex; align-items:center; justify-content:center;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+                </button>
+                <button class="btn btn-secondary" onclick="resetStepAnimation()" title="Reset" style="width:38px; padding:0; display:flex; align-items:center; justify-content:center;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                </button>
             </div>
 
-            <!-- Theta Selector Dropdown (shown when Single Angle mode is selected) -->
-            <div id="singleThetaWrap" class="theta-selector-box" style="display:none; margin-top:0.6rem;">
-                <label for="singleThetaSelect" class="select-label">Bending Angle (θ):</label>
-                <select id="singleThetaSelect" class="clean-select" onchange="onSingleThetaChange(this.value)">
-                    <option value="0" selected>0° (Major Axis +Mx)</option>
-                    <option value="10">10°</option>
-                    <option value="20">20°</option>
-                    <option value="30">30°</option>
-                    <option value="40">40°</option>
-                    <option value="45">45° (Biaxial 1:1 Diagonal)</option>
-                    <option value="50">50°</option>
-                    <option value="60">60°</option>
-                    <option value="70">70°</option>
-                    <option value="80">80°</option>
-                    <option value="90">90° (Minor Axis +My)</option>
-                    <option value="120">120°</option>
-                    <option value="135">135°</option>
-                    <option value="150">150°</option>
-                    <option value="180">180° (-Mx)</option>
-                    <option value="225">225°</option>
-                    <option value="270">270° (-My)</option>
-                    <option value="315">315°</option>
+            <!-- Scrubber Slider -->
+            <div style="margin-bottom:0.6rem;">
+                <label class="select-label">Scrub Step:</label>
+                <input type="range" id="animStepSlider" min="1" max="1080" value="1" oninput="jumpToStep(this.value)" style="width:100%; accent-color:var(--accent-color);">
+            </div>
+
+            <!-- Speed Control -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+                <label class="select-label" style="margin:0;">Speed:</label>
+                <select class="clean-select" style="width:100px; padding:0.25rem 0.5rem;" onchange="setAnimationSpeed(this.value)">
+                    <option value="0.5">0.5x Slow</option>
+                    <option value="1" selected>1x Normal</option>
+                    <option value="2">2x Fast</option>
+                    <option value="5">5x Rapid</option>
                 </select>
             </div>
 
-            <label class="custom-toggle" style="margin-top: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 0.6rem;">
-                <input type="checkbox" id="showProcess" checked onchange="toggleProcessPanel()">
-                <span class="toggle-track"><span class="toggle-thumb"></span></span>
-                <span class="toggle-text">Live Calculation Inspector</span>
-            </label>
-        </div>
-
-        <!-- 3. Live Calculation Inspector (Visible when Live Calculation Inspector toggle is ON) -->
-        <div id="livePanel" class="sidebar-card">
-            <div class="card-mini-header">
-                <span class="card-mini-title">Live Value Inspector</span>
-                <span id="lv-status" class="tag-chip">Idle</span>
-            </div>
-
-            <div class="lv-group">
-                <div class="lv-row"><span class="lv-label">Angle (θ)</span><span class="lv-val" id="lv-theta">—</span></div>
-                <div class="mini-bar-wrap"><div class="mini-bar-fill" id="lv-angle-bar"></div></div>
-            </div>
-
-            <div class="lv-group">
-                <div class="lv-row"><span class="lv-label">NA Depth (X<sub>u</sub>)</span><span class="lv-val" id="lv-xu">—</span></div>
-                <div class="mini-bar-wrap"><div class="mini-bar-fill xu-bar" id="lv-xu-bar"></div></div>
-            </div>
-
-            <div class="meta-grid" style="margin-top:0.6rem;">
-                <div class="meta-item"><span class="meta-lbl">Cc (Concrete)</span><span id="lv-cc" class="meta-val">—</span></div>
-                <div class="meta-item"><span class="meta-lbl">Cs (Steel Comp)</span><span id="lv-cs" class="meta-val">—</span></div>
-                <div class="meta-item"><span class="meta-lbl">Ts (Steel Tens)</span><span id="lv-ts" class="meta-val">—</span></div>
-                <div class="meta-item"><span class="meta-lbl">P<sub>u</sub> Load</span><span id="lv-pu" class="meta-val">—</span></div>
-                <div class="meta-item"><span class="meta-lbl">M<sub>x</sub> Moment</span><span id="lv-mx" class="meta-val">—</span></div>
-                <div class="meta-item"><span class="meta-lbl">M<sub>y</sub> Moment</span><span id="lv-my" class="meta-val">—</span></div>
-            </div>
-
-            <!-- Play / Speed Controls inside Inspector -->
-            <div id="processControls" style="margin-top:0.75rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
-                <div class="ctrl-row">
-                    <button class="btn btn-primary" id="btnPlayPause" onclick="handlePlayPause()" style="flex:1;">
-                        ▶ Play Sweep
-                    </button>
-                    <button class="btn btn-secondary" id="btnReset" onclick="handleReset()" style="width: auto;">
-                        ↺ Reset
-                    </button>
+            <div class="step-input-row" style="border-top:1px solid var(--border-color); padding-top:0.6rem; margin-bottom:0.4rem;">
+                <div>
+                    <label class="select-label">Start Step:</label>
+                    <input type="number" id="startStepInput" value="1" min="1" onchange="onStepInputChange()">
                 </div>
-                <div class="speed-wrap" style="margin-top: 0.6rem;">
-                    <span>Fast</span>
-                    <input type="range" id="animSpeed" min="0" max="120" step="10" value="20" style="flex:1;">
-                    <span>Slow</span>
+                <div>
+                    <label class="select-label">End Step:</label>
+                    <input type="number" id="endStepInput" value="40" min="1" onchange="onStepInputChange()">
                 </div>
+            </div>
+
+            <div class="preset-btn-grid">
+                <button class="btn btn-secondary" onclick="runPlotSteps(1, 1)">Step 1</button>
+                <button class="btn btn-secondary" onclick="runPlotSteps(1, 40)">Steps 1–40</button>
+                <button class="btn btn-secondary" onclick="runPlotSteps(40, 60)">Steps 40–60</button>
+                <button class="btn btn-secondary" onclick="runPlotSteps(1, null)">All Steps</button>
+            </div>
+
+            <div class="phase-badge-box">
+                <div class="phase-row"><span class="phase-label">Phase:</span><span class="phase-val" id="phaseNameVal">—</span></div>
+                <div class="phase-row"><span class="phase-label">Angles:</span><span class="phase-val" id="phaseAngleVal">—</span></div>
+                <div class="phase-row"><span class="phase-label">Progress:</span><span class="phase-val" id="phaseProgressVal">—</span></div>
             </div>
         </div>
 
-        <!-- Section Operations Card -->
+        <!-- Actions Card -->
         <div class="sidebar-card">
             <div class="card-mini-header">
-                <span class="card-mini-title">Section Actions</span>
+                <span class="card-mini-title">Actions</span>
             </div>
             <button class="btn btn-secondary" onclick="document.getElementById('sectionFileInput').click()" style="margin-bottom:0.5rem;">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 21V9"></path><path d="m7 14 5-5 5 5"></path><path d="M5 3h14"></path></svg>
@@ -251,28 +171,24 @@
             </button>
             <input type="file" id="sectionFileInput" accept=".json" style="display:none;" onchange="loadSection(event)">
 
-            <button class="btn btn-primary" onclick="recompute3D()">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
-                Recompute Surface
+            <button class="btn btn-secondary" onclick="downloadJSON()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Download JSON File
             </button>
         </div>
     </div>
 
     <div class="sidebar-footer">
-        Hover on the surface to see the column rotate and the NA plane shift. Enable
-        <b>Show Process</b> and press <b>Play</b> to watch each point computed live.
+        Step-by-step 3D capacity phase inspector and JSON dataset generator.
     </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════════════════════
-     MAIN PLOT AREA & DASHBOARD
-══════════════════════════════════════════════════════════════════════ -->
 <div class="main-container">
     <!-- Top Concept & HUD Banner -->
     <div class="hud-header">
         <div class="hud-title-wrap">
-            <div class="hud-badge">Biaxial Interaction Envelope</div>
-            <h2 class="hud-main-title">3D Failure Surface (P<sub>u</sub> – M<sub>x</sub> – M<sub>y</sub>)</h2>
+            <div class="hud-badge">Biaxial Interaction Inspector</div>
+            <h2 class="hud-main-title">3D Capacity Surface & Step Inspector</h2>
         </div>
         <div class="hud-metrics">
             <div class="hud-card">
@@ -300,57 +216,56 @@
         <div class="color-spectrum">
             <div class="spectrum-gradient"></div>
             <div class="spectrum-labels">
-                <span style="color:#ef4444;">0° (Red: +M<sub>x</sub>)</span>
+                <span style="color:#ef4444;">0° (+M<sub>x</sub>)</span>
                 <span style="color:#eab308;">45°</span>
-                <span style="color:#10b981;">90° (Green: +M<sub>y</sub>)</span>
-                <span style="color:#06b6d4;">180° (Cyan: -M<sub>x</sub>)</span>
-                <span style="color:#8b5cf6;">270° (Violet: -M<sub>y</sub>)</span>
+                <span style="color:#10b981;">90° (+M<sub>y</sub>)</span>
+                <span style="color:#06b6d4;">180° (-M<sub>x</sub>)</span>
+                <span style="color:#8b5cf6;">270° (-M<sub>y</sub>)</span>
                 <span style="color:#ef4444;">360°</span>
             </div>
         </div>
     </div>
 
-    <div style="flex:1; padding:1rem; overflow:hidden; display:flex; flex-direction:column;">
-        <div class="plot-card card" style="flex:1; display:flex; flex-direction:column;">
-
-            <!-- Loading overlay -->
-            <div id="loadingOverlay" class="loading-overlay" style="display:none;">
-                <div class="spinner"></div>
-                <div style="font-weight:700;font-size:1.05rem;">Generating 3D Capacity Surface Mesh…</div>
-                <div id="progressText" style="font-size:.88rem;color:var(--text-secondary);margin-top:.2rem;">0 %</div>
-                <div class="prog-wrap"><div class="prog-fill" id="progressBar"></div></div>
+    <div style="flex:1; padding:0.75rem 1rem; overflow:hidden; display:flex; flex-direction:column; gap:0.75rem;">
+        <!-- Plots Row -->
+        <div style="flex:1; display:flex; gap:0.85rem; min-height:0; width:100%;">
+            <!-- 3D Surface Viewport -->
+            <div class="viewport-box" style="flex:1.3;">
+                <div class="box-header">
+                    <div class="box-title">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                        3D Capacity Step Plot
+                    </div>
+                </div>
+                <div id="plotlyPlot3D" style="flex:1; width:100%; height:100%; min-height:0;"></div>
             </div>
 
-            <!-- Clean 2-Column Split Viewport -->
-            <div style="flex:1; display:flex; gap:1rem; min-height:0; width:100%;">
-                <!-- Left: 3D Failure Surface -->
-                <div class="viewport-box" style="flex:1.4;">
-                    <div class="box-header">
-                        <div class="box-title">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
-                            3D Failure Surface (Hover to rotate viewport)
-                        </div>
+            <!-- 2D Section Viewport -->
+            <div class="viewport-box" style="flex:1;">
+                <div class="box-header">
+                    <div class="box-title">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
+                        2D Section & Neutral Axis
                     </div>
-                    <div id="plotlyPlot3D" style="flex:1; width:100%; height:100%; min-height:0;"></div>
+                    <span class="box-tag" id="naDepthTag">X<sub>u</sub> = — mm</span>
                 </div>
-
-                <!-- Right: 2D Section Viewport -->
-                <div class="viewport-box" style="flex:1;">
-                    <div class="box-header">
-                        <div class="box-title">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
-                            2D Section & Neutral Axis
-                        </div>
-                        <span class="box-tag" id="naDepthTag">X<sub>u</sub> = — mm</span>
-                    </div>
-                    <div id="plotlyPlot2D" style="flex:1; width:100%; height:100%; min-height:0;"></div>
-                </div>
+                <div id="plotlyPlot2D" style="flex:1; width:100%; height:100%; min-height:0;"></div>
             </div>
+        </div>
+
+        <!-- JSON Dataset Viewer Row -->
+        <div style="height:180px; display:flex; flex-direction:column; min-height:0;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+                <span class="legend-title">Selected Step Range JSON Output:</span>
+                <button class="btn btn-secondary" onclick="copyJSONToClipboard()" style="padding:0.2rem 0.6rem; font-size:0.75rem; width:auto;">
+                    📋 Copy JSON
+                </button>
+            </div>
+            <pre class="json-box" id="jsonOutput">Generating step JSON...</pre>
         </div>
     </div>
 </div>
 
-<!-- ════════════════════════════════════════════════════════ Scripts -->
 <script src="./js/state.js"></script>
 <script src="./js/materials.js"></script>
 <script src="./js/geometry.js"></script>
@@ -359,12 +274,13 @@
 <script src="./js/section-editor.js"></script>
 
 <script>
-// ── Override applySection so loading a new section auto-recomputes ────────────
+let currentPhaseInfo = null;
+
 const _origApply = applySection;
 applySection = function(data) {
     _origApply(data);
     updateMetaLabels();
-    recompute3D();
+    runPlotSteps(1, 40);
 };
 
 function updateMetaLabels() {
@@ -381,78 +297,58 @@ function updateMetaLabels() {
     document.getElementById('metaPt').textContent  = `${(Asc/Ag*100).toFixed(2)} %`;
 }
 
-// ── Pre-compute + render (normal path) ────────────────────────────────────────
-function recompute3D() {
-    stopProcessAnimation();  // stop any running animation
+function runPlotSteps(startStep, endStep) {
+    if (typeof plot3DSteps !== 'function') return;
 
-    const overlay = document.getElementById('loadingOverlay');
-    const bar     = document.getElementById('progressBar');
-    const text    = document.getElementById('progressText');
-    overlay.style.display = 'flex';
-    bar.style.width = '0%'; text.textContent = '0 %';
+    if (endStep === null) {
+        const all = getAllAnimationSteps();
+        endStep = all.length;
+    }
 
-    setTimeout(() => {
-        const mesh = generate3DSurfaceData(pct => {
-            bar.style.width  = pct + '%';
-            text.textContent = pct + ' %';
-        });
-        render3DPlot(mesh);
-        overlay.style.display = 'none';
-        resetPlayUI();
-    }, 80);
-}
+    document.getElementById('startStepInput').value = startStep;
+    document.getElementById('endStepInput').value = endStep;
 
-// ── Process panel toggle & Single Theta Slice toggle ─────────────────────────
-function toggleProcessPanel() {
-    const on = document.getElementById('showProcess').checked;
-    document.getElementById('livePanel').style.display      = on ? 'block' : 'none';
-    document.getElementById('processControls').style.display = on ? 'block' : 'none';
-    updateProcessTraces();  // show/hide comp block on the plot
-}
+    currentPhaseInfo = plot3DSteps(startStep, endStep);
 
-// ── View Mode & Single Theta Slice Handlers ──────────────────────────────────
-function handleViewModeChange(mode) {
-    // Reset any running or paused animation state instantly when radio mode changes
-    handleReset();
+    if (currentPhaseInfo && !currentPhaseInfo.error) {
+        document.getElementById('phaseNameVal').textContent = currentPhaseInfo.phaseName;
+        document.getElementById('phaseAngleVal').textContent = `${currentPhaseInfo.startAngleDeg}° – ${currentPhaseInfo.endAngleDeg}°`;
+        document.getElementById('phaseProgressVal').textContent = `${currentPhaseInfo.progressPct}% (${currentPhaseInfo.count} steps)`;
 
-    const isSingle = (mode === 'single');
-    document.getElementById('singleThetaWrap').style.display = isSingle ? 'block' : 'none';
-    const angleVal = document.getElementById('singleThetaSelect').value;
-    filterByTheta(isSingle ? parseInt(angleVal) : null);
-}
-
-function onSingleThetaChange(angleVal) {
-    handleReset();
-    const isSingle = document.querySelector('input[name="surfaceViewMode"]:checked')?.value === 'single';
-    if (isSingle) {
-        filterByTheta(parseInt(angleVal));
+        const jsonStr = JSON.stringify(currentPhaseInfo, null, 2);
+        document.getElementById('jsonOutput').textContent = jsonStr;
     }
 }
 
-function resetPlayUI() {
-    const btn = document.getElementById('btnPlayPause');
-    if (btn) { btn.textContent = '▶ Play'; btn.disabled = false; }
+function onStepInputChange() {
+    const s = parseInt(document.getElementById('startStepInput').value) || 1;
+    const e = parseInt(document.getElementById('endStepInput').value) || s;
+    runPlotSteps(s, e);
 }
 
-// ── Theme toggle ──────────────────────────────────────────────────────────────
+function copyJSONToClipboard() {
+    const text = document.getElementById('jsonOutput').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        alert('JSON copied to clipboard!');
+    });
+}
+
+function downloadJSON() {
+    if (!currentPhaseInfo) return;
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentPhaseInfo, null, 2));
+    const dlAnchorElem = document.createElement('a');
+    dlAnchorElem.setAttribute("href", dataStr);
+    dlAnchorElem.setAttribute("download", `step_range_${currentPhaseInfo.startStep}_to_${currentPhaseInfo.endStep}.json`);
+    dlAnchorElem.click();
+}
+
 function toggleTheme() {
     document.body.classList.toggle('light-theme');
-    const isLight = document.body.classList.contains('light-theme');
-    document.getElementById('themeIcon').innerHTML = isLight
-        ? `<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line>
-           <line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-           <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line>
-           <line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-           <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>`
-        : `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>`;
-    recompute3D();
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
 window.onload = function() {
     updateMetaLabels();
-    toggleProcessPanel();   // apply initial state of checkbox
-    recompute3D();
+    runPlotSteps(1, 40);
 };
 </script>
 </body>

@@ -10,6 +10,11 @@ let lastHoveredPtInfo  = { theta: 0, Xu: 150, Mx: 0, My: 0, Pu: 0 };
 // Animation state (set by render3DPlot, consumed by startProcessAnimation)
 let _animRunning   = false;
 let _animShouldRun = false;
+let _animPaused    = false;
+let _animStartAIdx = 1;
+let _animStartPtIdx = 0;
+let _animX = [], _animY = [], _animZ = [];
+let _animAngles = [], _animOpacities = [], _animColorStrs = [];
 let _animScale     = 1;
 let _animCenterZ   = 0;
 let _animColHeight = 0;
@@ -143,6 +148,616 @@ function _computeOnePoint(theta, Xu, extent, rotatedVertices, rotatedBars, minY)
         MOR: result.MOR,
         Cc, Cs_net, Ts_net, e_top, e_bot
     };
+}
+
+/**
+ * Computes and returns complete mechanical and geometric data for a given (thetaDeg, Xu) state.
+ * @param {number} thetaDeg - Bending angle in degrees (e.g. 350.0)
+ * @param {number} Xu - Neutral Axis depth in mm (e.g. 5.0)
+ * @returns {object} Detailed point info object containing thetaDeg, Xu, Pu, MOR/Mu, Mx, My, Cc, Cs, Ts, e_top, e_bot
+ */
+function getPointData(thetaDeg, Xu) {
+    const theta = (thetaDeg % 360) * Math.PI / 180;
+    const ctx = _buildAngleContext(theta);
+    const result = _computeOnePoint(theta, Xu, ctx.extent, ctx.rotatedVertices, ctx.rotatedBars, ctx.minY);
+    const xuList = _xuList(ctx.extent);
+    const aIdx = Math.round((thetaDeg % 360) / 10);
+    const ptIdx = Math.max(0, xuList.findIndex(x => Math.abs(x - Xu) < 1e-3));
+    const totalSteps = 36 * xuList.length;
+    const stepIndex = aIdx * xuList.length + ptIdx;
+
+    return {
+        thetaDeg: parseFloat(thetaDeg.toFixed(1)),
+        thetaRad: theta,
+        Xu: parseFloat(Xu.toFixed(1)),
+        Pu: parseFloat(result.Pu.toFixed(1)),
+        Mu: parseFloat(result.MOR.toFixed(2)),
+        Mx: parseFloat(result.Mx.toFixed(2)),
+        My: parseFloat(result.My.toFixed(2)),
+        Cc: parseFloat(result.Cc.toFixed(1)),
+        Cs: parseFloat(result.Cs_net.toFixed(1)),
+        Ts: parseFloat(result.Ts_net.toFixed(1)),
+        e_top: parseFloat((result.e_top * 1000).toFixed(2)),
+        e_bot: parseFloat((result.e_bot * 1000).toFixed(2)),
+        extent: ctx.extent,
+        animationSteps: {
+            stepIndex: stepIndex,
+            angleIndex: aIdx,
+            xuIndex: ptIdx,
+            totalAngles: 36,
+            totalXu: xuList.length,
+            totalSteps: totalSteps,
+            progressPct: parseFloat(((stepIndex + 1) / totalSteps * 100).toFixed(1))
+        },
+        raw: result
+    };
+}
+
+/**
+ * Generates and returns the complete array of pre-computed animation step objects across all angles and Xu depths.
+ * @returns {Array<object>} Array of all animation step objects
+ */
+function getAllAnimationSteps() {
+    const numAngles = 36;
+    const steps = [];
+    let globalStepIdx = 0;
+
+    for (let aIdx = 0; aIdx < numAngles; aIdx++) {
+        const angleDeg = aIdx * 10;
+        const theta = angleDeg * Math.PI / 180;
+        const ctx = _buildAngleContext(theta);
+        const xuList = _xuList(ctx.extent);
+
+        for (let ptIdx = 0; ptIdx < xuList.length; ptIdx++) {
+            const xu = xuList[ptIdx];
+            try {
+                const data = getPointData(angleDeg, xu);
+                data.animationSteps.stepIndex = globalStepIdx;
+                data.animationSteps.progressPct = parseFloat(((globalStepIdx + 1) / (36 * xuList.length) * 100).toFixed(1));
+                steps.push(data);
+                globalStepIdx++;
+            } catch(e) {}
+        }
+    }
+
+    const negativeXuSteps = steps.filter(s => s.Xu < 0);
+    if (negativeXuSteps.length > 0) {
+        console.warn(negativeXuSteps.length, negativeXuSteps);
+    } else {
+        console.log(0);
+    }
+
+    return steps;
+}
+
+/**
+ * Plots 3D capacity points for a specific step or step range (1-indexed).
+ * Examples:
+ *   plot3DSteps(1)        -> plots step 1
+ *   plot3DSteps(1, 40)    -> plots steps 1 to 40
+ *   plot3DSteps(40, 60)   -> plots steps 40 to 60
+ *
+ * @param {number} startStep - Starting step number (1-indexed, e.g. 1 or 40)
+ * @param {number} [endStep] - Ending step number (1-indexed, defaults to startStep)
+ * @returns {object} Phase metadata and array of plotted step objects
+ */
+function plot3DSteps(startStep, endStep) {
+    const allSteps = getAllAnimationSteps();
+    if (allSteps.length === 0) return { error: "No animation steps available" };
+
+    if (endStep === undefined || endStep === null) {
+        endStep = startStep;
+    }
+
+    const sIdx = Math.max(0, Math.min(allSteps.length - 1, startStep - 1));
+    const eIdx = Math.max(0, Math.min(allSteps.length - 1, endStep - 1));
+
+    const minIdx = Math.min(sIdx, eIdx);
+    const maxIdx = Math.max(sIdx, eIdx);
+
+    const rangeSteps = allSteps.slice(minIdx, maxIdx + 1);
+    const totalSteps = allSteps.length;
+    const currentStep = maxIdx + 1;
+    const progressPct = parseFloat(((currentStep / totalSteps) * 100).toFixed(1));
+
+    const activeAngle = rangeSteps[rangeSteps.length - 1].thetaDeg;
+
+    // Partition all accumulated steps (1..endStep) into:
+    // Trace 0: Historical completed angle steps (faded opacity = 0.3)
+    // Trace 1: Active current angle steps (full opacity = 1.0)
+    const accumulatedSteps = allSteps.slice(0, maxIdx + 1);
+    const histSteps = accumulatedSteps.filter(s => s.thetaDeg !== activeAngle);
+    const activeSteps = accumulatedSteps.filter(s => s.thetaDeg === activeAngle);
+
+    const phaseInfo = {
+        startStep: minIdx + 1,
+        endStep: maxIdx + 1,
+        totalSteps: totalSteps,
+        count: rangeSteps.length,
+        progressPct: progressPct,
+        startAngleDeg: rangeSteps[0].thetaDeg,
+        endAngleDeg: activeAngle,
+        phaseName: progressPct <= 25 ? "Initial Sweep (0°–90°)" :
+                   progressPct <= 50 ? "Biaxial Quad 2 (90°–180°)" :
+                   progressPct <= 75 ? "Biaxial Quad 3 (180°–270°)" : "Final Envelope Sweep (270°–360°)",
+        steps: rangeSteps
+    };
+
+    const el3D = document.getElementById('plotlyPlot3D');
+    if (el3D && typeof Plotly !== 'undefined') {
+        const maxMu = Math.max(
+            ...allSteps.map(s => Math.abs(s.Mx)),
+            ...allSteps.map(s => Math.abs(s.My)),
+            50
+        );
+        const axisLimit = Math.ceil(maxMu * 1.15);
+
+        const allPu = allSteps.map(s => s.Pu);
+        const minPu = Math.floor(Math.min(...allPu) * 1.1);
+        const maxPu = Math.ceil(Math.max(...allPu) * 1.1);
+
+        const isDark = typeof document !== 'undefined' && document.body.classList.contains('light-theme') ? false : true;
+        const textColor = isDark ? '#f3f4f6' : '#0f172a';
+        const gridColor = isDark ? '#2d3748' : '#e2e8f0';
+
+        // Helper to format line arrays with null breaks between distinct bending angles
+        const buildAngleLineArrays = (stepList) => {
+            const x = [];
+            const y = [];
+            const z = [];
+            const colors = [];
+
+            let lastAngle = null;
+            for (let i = 0; i < stepList.length; i++) {
+                const s = stepList[i];
+                const c = _angleToRGBA(s.thetaDeg, 1.0);
+                if (lastAngle !== null && s.thetaDeg !== lastAngle) {
+                    x.push(null);
+                    y.push(null);
+                    z.push(null);
+                    colors.push(c);
+                }
+                x.push(s.Mx);
+                y.push(s.My);
+                z.push(s.Pu);
+                colors.push(c);
+                lastAngle = s.thetaDeg;
+            }
+            return { x, y, z, colors };
+        };
+
+        const histData = buildAngleLineArrays(histSteps);
+        const activeData = buildAngleLineArrays(activeSteps);
+
+        // Trace 0: Historical completed angle steps (opacity = 0.5)
+        const histTrace = {
+            type: 'scatter3d',
+            mode: 'lines',
+            x: histData.x,
+            y: histData.y,
+            z: histData.z,
+            opacity: 0.5,
+            line: {
+                width: 3.5,
+                color: histData.colors
+            },
+            name: 'Completed Angles (Faded)'
+        };
+
+        // Trace 1: Active current angle steps (opacity = 1.0)
+        const activeTrace = {
+            type: 'scatter3d',
+            mode: 'lines',
+            x: activeData.x,
+            y: activeData.y,
+            z: activeData.z,
+            opacity: 1.0,
+            line: {
+                width: 5,
+                color: activeData.colors
+            },
+            name: `Active Angle (${activeAngle}°)`
+        };
+
+        const layout = {
+            paper_bgcolor: 'transparent',
+            margin: { t: 0, r: 0, l: 0, b: 0 },
+            uirevision: 'same',
+            scene: {
+                xaxis: {
+                    title: { text: 'Mx (kNm)', font: { color: textColor } },
+                    gridcolor: gridColor, tickfont: { color: textColor },
+                    range: [-axisLimit, axisLimit], autorange: false
+                },
+                yaxis: {
+                    title: { text: 'My (kNm)', font: { color: textColor } },
+                    gridcolor: gridColor, tickfont: { color: textColor },
+                    range: [-axisLimit, axisLimit], autorange: false
+                },
+                zaxis: {
+                    title: { text: 'Pu (kN)', font: { color: textColor } },
+                    gridcolor: gridColor, tickfont: { color: textColor },
+                    range: [minPu, maxPu], autorange: false
+                },
+                aspectmode: 'cube'
+            },
+            showlegend: false
+        };
+
+        Plotly.react(el3D, [histTrace, activeTrace], layout, { responsive: true });
+    }
+
+    const lastStep = rangeSteps[rangeSteps.length - 1];
+    _update2DPlot(lastStep.thetaRad, lastStep.Xu, maxIdx + 1);
+
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    set('hudTheta', `${lastStep.thetaDeg.toFixed(1)}°`);
+    set('hudXu',    `${lastStep.Xu.toFixed(1)} mm`);
+    set('hudPu',    `${lastStep.Pu.toFixed(1)} kN`);
+    set('hudMu',    `${lastStep.Mu.toFixed(1)} kNm`);
+
+    return phaseInfo;
+}
+
+// ── Animation Engine State & Controls ─────────────────────────────────────────
+let currentAnimStep = 1;
+let isAnimPlaying = false;
+let animTimer = null;
+let animSpeedMs = 40;
+
+function _syncAnimUI(info) {
+    const playBtn = document.getElementById('animPlayPauseBtn');
+    if (playBtn) {
+        playBtn.innerHTML = isAnimPlaying
+            ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg> Pause`
+            : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Play`;
+    }
+
+    const slider = document.getElementById('animStepSlider');
+    if (slider && info) {
+        slider.max = info.totalSteps;
+        slider.value = currentAnimStep;
+    }
+
+    const badge = document.getElementById('animStepBadge');
+    if (badge && info) {
+        badge.textContent = `Step ${currentAnimStep} / ${info.totalSteps} (${info.progressPct}%)`;
+    }
+}
+
+/**
+ * Incrementally appends a single step point to the active angle trace (Trace 1),
+ * or transitions completed angles to historical background trace (Trace 0, opacity 0.3) when a new angle starts.
+ * @param {number} stepNum - 1-indexed step number to append
+ * @returns {object} Step info metadata
+ */
+function append3DStep(stepNum) {
+    const allSteps = getAllAnimationSteps();
+    if (allSteps.length === 0) return { error: "No animation steps available" };
+
+    const idx = Math.max(0, Math.min(allSteps.length - 1, stepNum - 1));
+    const stepData = allSteps[idx];
+    const prevStepData = idx > 0 ? allSteps[idx - 1] : null;
+    const el3D = document.getElementById('plotlyPlot3D');
+
+    if (el3D && typeof Plotly !== 'undefined') {
+        const isNewAngle = !prevStepData || (stepData.thetaDeg !== prevStepData.thetaDeg);
+
+        if (!el3D.data || el3D.data.length < 2 || stepNum === 1 || isNewAngle) {
+            plot3DSteps(1, stepNum);
+        } else {
+            const color = _angleToRGBA(stepData.thetaDeg, 1.0);
+            Plotly.extendTraces(el3D, {
+                x: [[stepData.Mx]],
+                y: [[stepData.My]],
+                z: [[stepData.Pu]],
+                'line.color': [[color]]
+            }, [1]);
+        }
+    }
+
+    _update2DPlot(stepData.thetaRad, stepData.Xu, idx + 1);
+
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    set('hudTheta', `${stepData.thetaDeg.toFixed(1)}°`);
+    set('hudXu',    `${stepData.Xu.toFixed(1)} mm`);
+    set('hudPu',    `${stepData.Pu.toFixed(1)} kN`);
+    set('hudMu',    `${stepData.Mu.toFixed(1)} kNm`);
+
+    const progressPct = parseFloat(((stepNum / allSteps.length) * 100).toFixed(1));
+    return {
+        currentStep: stepNum,
+        totalSteps: allSteps.length,
+        progressPct: progressPct,
+        stepData: stepData
+    };
+}
+
+function playStepAnimation() {
+    if (isAnimPlaying) return;
+    const allSteps = getAllAnimationSteps();
+    if (allSteps.length === 0) return;
+
+    if (currentAnimStep >= allSteps.length) {
+        currentAnimStep = 1;
+    }
+
+    // Initialize 3D plot for step 1 if starting fresh
+    if (currentAnimStep === 1) {
+        plot3DSteps(1, 1);
+    }
+
+    isAnimPlaying = true;
+
+    const tick = () => {
+        if (!isAnimPlaying) return;
+        const info = append3DStep(currentAnimStep);
+        _syncAnimUI(info);
+
+        if (currentAnimStep >= allSteps.length) {
+            pauseStepAnimation();
+        } else {
+            currentAnimStep++;
+            animTimer = setTimeout(tick, animSpeedMs);
+        }
+    };
+
+    tick();
+}
+
+function pauseStepAnimation() {
+    isAnimPlaying = false;
+    if (animTimer) {
+        clearTimeout(animTimer);
+        animTimer = null;
+    }
+    const allSteps = getAllAnimationSteps();
+    const info = {
+        totalSteps: allSteps.length,
+        progressPct: parseFloat(((currentAnimStep / allSteps.length) * 100).toFixed(1))
+    };
+    _syncAnimUI(info);
+}
+
+function togglePlayPauseAnimation() {
+    if (isAnimPlaying) {
+        pauseStepAnimation();
+    } else {
+        playStepAnimation();
+    }
+}
+
+function resetStepAnimation() {
+    pauseStepAnimation();
+    currentAnimStep = 1;
+    const info = plot3DSteps(1, 1);
+    _syncAnimUI(info);
+}
+
+function stepForwardAnimation() {
+    pauseStepAnimation();
+    const allSteps = getAllAnimationSteps();
+    if (currentAnimStep < allSteps.length) {
+        currentAnimStep++;
+    }
+    const info = plot3DSteps(1, currentAnimStep);
+    _syncAnimUI(info);
+}
+
+function stepBackwardAnimation() {
+    pauseStepAnimation();
+    if (currentAnimStep > 1) {
+        currentAnimStep--;
+    }
+    const info = plot3DSteps(1, currentAnimStep);
+    _syncAnimUI(info);
+}
+
+function jumpToStep(stepNum) {
+    pauseStepAnimation();
+    const allSteps = getAllAnimationSteps();
+    currentAnimStep = Math.max(1, Math.min(allSteps.length, parseInt(stepNum) || 1));
+    const info = plot3DSteps(1, currentAnimStep);
+    _syncAnimUI(info);
+}
+
+function setAnimationSpeed(speedMultiplier) {
+    const mult = parseFloat(speedMultiplier) || 1;
+    animSpeedMs = Math.max(5, Math.round(40 / mult));
+}
+
+// ── 2D Column Cross-Section Plotting ──────────────────────────────────────────
+function _update2DPlot(theta, Xu, stepNum) {
+    const plot2DEl = document.getElementById('plotlyPlot2D');
+    if (!plot2DEl || typeof Plotly === 'undefined') return;
+
+    const isDark = !document.body.classList.contains('light-theme');
+    const textColor = isDark ? '#f3f4f6' : '#0f172a';
+    const gridColor = isDark ? '#2d3748' : '#e2e8f0';
+
+    const bHalf = maxX / 2;
+    const dHalf = maxY / 2;
+
+    // Helper to rotate point by +theta and apply side mirror (x -> -x)
+    const rawRot = (px, py) => {
+        const cos = Math.cos(theta);
+        const sin = Math.sin(theta);
+        return {
+            x: -(px * cos - py * sin),
+            y: px * sin + py * cos
+        };
+    };
+
+    // 1. Unrotated Outline (centred at 0,0)
+    let rawOutline = [];
+    if (sectionType === 'circular') {
+        const R = maxY / 2, Nc = 64;
+        for (let n = 0; n <= Nc; n++) {
+            const a = n * 2 * Math.PI / Nc;
+            rawOutline.push({ px: R * Math.cos(a), py: R * Math.sin(a) });
+        }
+    } else {
+        rawOutline = [
+            { px: -bHalf, py: -dHalf }, { px: bHalf, py: -dHalf },
+            { px: bHalf, py: dHalf }, { px: -bHalf, py: dHalf }, { px: -bHalf, py: -dHalf }
+        ];
+    }
+    const tempRotOutline = rawOutline.map(p => rawRot(p.px, p.py));
+
+    // Find minimum bounds to shift origin to (0, 0)
+    const minX = Math.min(...tempRotOutline.map(p => p.x));
+    const minY = Math.min(...tempRotOutline.map(p => p.y));
+
+    // Shift function ensuring min X = 0 and min Y = 0
+    const rot = (px, py) => {
+        const r = rawRot(px, py);
+        return {
+            x: r.x - minX,
+            y: r.y - minY
+        };
+    };
+
+    const rotOutline = rawOutline.map(p => rot(p.px, p.py));
+    const dimX = Math.max(...rotOutline.map(p => p.x));
+    const dimY = Math.max(...rotOutline.map(p => p.y));
+
+    const outlineTrace = {
+        type: 'scatter', mode: 'lines',
+        x: rotOutline.map(p => p.x),
+        y: rotOutline.map(p => p.y),
+        fill: 'toself',
+        fillcolor: isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(226, 232, 240, 0.6)',
+        line: { color: isDark ? '#94a3b8' : '#475569', width: 2 },
+        name: 'Concrete Section', hoverinfo: 'skip'
+    };
+
+    // 2. Rebars (shifted to >= 0)
+    const rotBars = circles.map(c => rot(c.x - bHalf, c.y - dHalf));
+    const rebarTrace = {
+        type: 'scatter', mode: 'markers',
+        x: rotBars.map(p => p.x),
+        y: rotBars.map(p => p.y),
+        marker: { size: 10, color: '#3b82f6', line: { color: '#1d4ed8', width: 1.5 } },
+        name: 'Rebars', hoverinfo: 'skip'
+    };
+
+    // 3. Neutral Axis (NA) & Compression Zone
+    const sinT = Math.sin(theta);
+    const cosT = Math.cos(theta);
+    let extent;
+
+    if (sectionType === 'circular') {
+        extent = maxY;
+    } else {
+        extent = maxX * Math.abs(sinT) + maxY * Math.abs(cosT);
+    }
+    const d = extent / 2 - Xu;
+
+    // Helper: Clip column polygon against horizontal NA line y = cutoffY
+    const clipPolyAboveY = (poly, cutoffY) => {
+        const out = [];
+        const N = poly.length;
+        for (let i = 0; i < N; i++) {
+            const curr = poly[i];
+            const next = poly[(i + 1) % N];
+            const currIn = curr.y <= cutoffY;
+            const nextIn = next.y <= cutoffY;
+
+            if (currIn) out.push(curr);
+            if (currIn !== nextIn) {
+                const dy = next.y - curr.y;
+                const t = Math.abs(dy) > 1e-9 ? (cutoffY - curr.y) / dy : 0;
+                out.push({ x: curr.x + t * (next.x - curr.x), y: cutoffY });
+            }
+        }
+        return out;
+    };
+
+    const clipPolyBelowY = (poly, cutoffY) => {
+        const out = [];
+        const N = poly.length;
+        for (let i = 0; i < N; i++) {
+            const curr = poly[i];
+            const next = poly[(i + 1) % N];
+            const currIn = curr.y >= cutoffY;
+            const nextIn = next.y >= cutoffY;
+
+            if (currIn) out.push(curr);
+            if (currIn !== nextIn) {
+                const dy = next.y - curr.y;
+                const t = Math.abs(dy) > 1e-9 ? (cutoffY - curr.y) / dy : 0;
+                out.push({ x: curr.x + t * (next.x - curr.x), y: cutoffY });
+            }
+        }
+        return out;
+    };
+
+    // Compression zone polygon (y <= Xu inside column)
+    const rotComp = clipPolyAboveY(rotOutline, Xu);
+
+    const compTrace = {
+        type: 'scatter', mode: 'lines',
+        x: rotComp.map(p => p.x),
+        y: rotComp.map(p => p.y),
+        fill: 'toself',
+        fillcolor: 'rgba(239, 68, 68, 0.35)',
+        line: { color: 'rgba(239, 68, 68, 0.8)', width: 1.5 },
+        name: 'Compression Zone', hoverinfo: 'skip'
+    };
+
+    // Tension zone polygon (y > Xu inside column)
+    const rotTens = clipPolyBelowY(rotOutline, Xu);
+
+    const tensTrace = {
+        type: 'scatter', mode: 'lines',
+        x: rotTens.map(p => p.x),
+        y: rotTens.map(p => p.y),
+        fill: 'toself',
+        fillcolor: 'rgba(16, 185, 129, 0.25)',
+        line: { color: 'rgba(16, 185, 129, 0.7)', width: 1.5 },
+        name: 'Tension Zone', hoverinfo: 'skip'
+    };
+
+    // Neutral Axis line plotted directly as y = Xu (NA depth location)
+    const naY = Xu;
+    const maxSectionDim = sectionType === 'circular' ? maxY : Math.max(maxX, maxY);
+    const maxSpan = 2 * maxSectionDim;
+
+    const naTrace = {
+        type: 'scatter', mode: 'lines',
+        x: [0, maxSpan],
+        y: [naY, naY],
+        line: { color: '#ef4444', width: 3, dash: 'dash' },
+        name: 'Neutral Axis', hoverinfo: 'skip'
+    };
+
+    const layout2D = {
+        margin: { t: 25, r: 25, l: 45, b: 40 },
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        transition: {
+            duration: Math.max(20, (typeof animSpeedMs !== 'undefined' ? animSpeedMs : 40) - 5),
+            easing: 'cubic-in-out'
+        },
+        xaxis: {
+            title: { text: 'X (mm)', font: { color: textColor, size: 11 } },
+            gridcolor: gridColor, tickfont: { color: textColor, size: 10 },
+            range: [0, maxSpan], scaleanchor: 'y', scaleratio: 1,
+            autorange: false
+        },
+        yaxis: {
+            title: { text: 'Y (mm)', font: { color: textColor, size: 11 } },
+            gridcolor: gridColor, tickfont: { color: textColor, size: 10 },
+            range: [0, maxSpan],
+            autorange: false
+        },
+        showlegend: false
+    };
+
+    Plotly.react(plot2DEl, [outlineTrace, compTrace, tensTrace, rebarTrace, naTrace], layout2D, { responsive: true });
+
+    const tag = document.getElementById('naDepthTag');
+    if (tag) tag.innerHTML = `X<sub>u</sub> = ${Xu.toFixed(1)} mm ${stepNum ? `(Step ${stepNum})` : ''}`;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -365,6 +980,11 @@ function _updateLivePanel(theta, Xu, result, angleDeg, totalAngles, xuIdx, total
     set('lv-etop',  `${(result.e_top * 1000).toFixed(2)}‰`);
     set('lv-ebot',  `${(result.e_bot * 1000).toFixed(2)}‰`);
 
+    set('hudTheta', `${angleDeg.toFixed(1)}°`);
+    set('hudXu',    `${Xu.toFixed(1)} mm`);
+    set('hudPu',    `${result.Pu.toFixed(1)} kN`);
+    set('hudMu',    `${result.MOR.toFixed(1)} kNm`);
+
     const angPct = (angleDeg / ((totalAngles-1) * 10)) * 100;
     const xuPct  = (xuIdx / (totalXu - 1)) * 100;
     const b1 = document.getElementById('lv-angle-bar');
@@ -411,540 +1031,28 @@ function generate3DSurfaceData(progressCallback) {
 
     const ppa = _xuList(1).length;
     const iIdx=[], jIdx=[], kIdx=[];
-    for (let a = 0; a < numAngles; a++) {
-        const na = (a+1) % numAngles;
-        for (let d = 0; d < ppa-1; d++) {
-            const p00=a*ppa+d, p10=na*ppa+d, p01=a*ppa+(d+1), p11=na*ppa+(d+1);
-            iIdx.push(p00, p00); jIdx.push(p10, p11); kIdx.push(p11, p01);
-        }
-    }
     return { x:xPoints, y:yPoints, z:zPoints, i:iIdx, j:jIdx, k:kIdx, thetaDeg };
 }
 
-// ── Real-time step-by-step playback engine ────────────────────────────────────
+/**
+ * Generates the complete JSON data structure for the current section and all 3D capacity points.
+ * @returns {object} JSON data object containing section properties and array of animation step objects
+ */
+function getFullSectionJSON() {
+    const Asc = circles.reduce((s, e) => s + Math.PI / 4 * e.dia * e.dia, 0);
+    const Ag = sectionType === 'circular' ? Math.PI / 4 * maxY * maxY : maxX * maxY;
 
-// Fully resets the 3D canvas to a blank state before a (re)play starts:
-// clears the growing live-scatter trace, keeps the unused path-line trace
-// hidden and empty (it was rendering a stray connecting line across the
-// growing scatter when left populated/visible from a prior run), and hides
-// the active-point dot until the first real point is computed so no stale
-// marker lingers at the old position.
-function _clearAnimationCanvas() {
-    const el = document.getElementById('plotlyPlot3D');
-    if (el && el.data) {
-        // Trace 0: Failure surface mesh — ensure visible when reset/cleared
-        Plotly.restyle(el, { visible: true }, [0]);
-
-        // Trace 1: unused path line — force markers-only + hidden + empty
-        Plotly.restyle(el, {
-            x: [[]], y: [[]], z: [[]], mode: 'markers', visible: false
-        }, [1]);
-
-        // Trace 2: live growing scatter — wipe all accumulated points & hide when mesh is shown
-        Plotly.restyle(el, {
-            x: [[]], y: [[]], z: [[]],
-            'marker.color': [[]], customdata: [[]], visible: false
-        }, [2]);
-
-        // Trace 3: active point marker dot — wipe coordinates & hide
-        Plotly.restyle(el, {
-            x: [[]], y: [[]], z: [[]], visible: false
-        }, [3]);
-    }
-
-    // 2D Section & Neutral Axis Plot — clear compression zone (Trace 1) and NA line (Trace 3)
-    const el2D = document.getElementById('plotlyPlot2D');
-    if (el2D && el2D.data) {
-        Plotly.restyle(el2D, { x: [[]], y: [[]], visible: false }, [1, 3]);
-    }
-    const naTag = document.getElementById('naDepthTag');
-    if (naTag) naTag.innerHTML = 'X<sub>u</sub> = — mm';
-
-    // Reset the live info panel progress bars
-    const b1 = document.getElementById('lv-angle-bar');
-    const b2 = document.getElementById('lv-xu-bar');
-    if (b1) b1.style.width = '0%';
-    if (b2) b2.style.width = '0%';
-    const st = document.getElementById('lv-status');
-    if (st) st.textContent = 'Idle';
-}
-
-async function startProcessAnimation(scale, centerZ, colHeight) {
-    _animRunning = true;
-    _animShouldRun = true;
-
-    const speedEl = document.getElementById('animSpeed');
-
-    // Clear canvas traces and hide the 3D surface mesh during sweep animation
-    // so live points build up on a clean canvas
-    _clearAnimationCanvas();
-    const el = document.getElementById('plotlyPlot3D');
-    if (el && el.data) {
-        Plotly.restyle(el, { visible: false }, [0]);
-        Plotly.restyle(el, { visible: true }, [2]);
-    }
-
-    const animX = [];
-    const animY = [];
-    const animZ = [];
-    const animAngles = [];      // angleDeg per point (for recomputing fade later)
-    const animOpacities = [];   // current opacity per point (0.2–1.0)
-    const animColorStrs = [];   // rgba() string per point, opacity baked in
-
-    // 35 angle datasets: 10°, 20°, ..., 350° (aIdx from 1 to 35)
-    for (let aIdx = 1; aIdx <= 35 && _animShouldRun; aIdx++) {
-        const angleDeg = aIdx * 10;
-        const theta    = angleDeg * Math.PI / 180;
-        const ctx      = _buildAngleContext(theta);
-        const xuList   = _xuList(ctx.extent);
-
-        // Precompute all points for this angle
-        const pathPts = [];
-
-        for (let xIdx = 0; xIdx < xuList.length; xIdx++) {
-            const xu = xuList[xIdx];
-            try {
-                const r = _computeOnePoint(theta, xu, ctx.extent, ctx.rotatedVertices, ctx.rotatedBars, ctx.minY);
-                if (!isNaN(r.Pu) && !isNaN(r.Mx)) {
-                    pathPts.push({ xu, r });
-                }
-            } catch(e) {}
-        }
-
-        if (pathPts.length === 0) continue;
-
-        {
-            const step = 0.8 / 34; // 0.0235294118
-            for (let idx = 0; idx < animOpacities.length; idx++) {
-                const datasetAngleIndex = Math.round(animAngles[idx] / 10);
-                const k = aIdx - datasetAngleIndex;
-                const opacity = Math.max(0.2, 1.0 - k * step);
-                animOpacities[idx] = opacity;
-                animColorStrs[idx] = _angleToRGBA(animAngles[idx], opacity);
-            }
-        }
-
-        // Rotate the 3D viewport so the NA line always faces the viewer
-        _setCameraForTheta(theta);
-
-        for (let ptIdx = 0; ptIdx < pathPts.length && _animShouldRun; ptIdx++) {
-            const { xu, r } = pathPts[ptIdx];
-            const delay = speedEl ? parseInt(speedEl.value) : 20;
-
-            // Live panel & 2D section plot update
-            _updateLivePanel(theta, xu, r, angleDeg, 36, ptIdx, pathPts.length);
-            _update2DPlot(theta, xu);
-
-            // Update active dot on 3D surface plot (re-shown after the canvas reset)
-            Plotly.restyle('plotlyPlot3D', {
-                x: [[r.Mx]], y: [[r.My]], z: [[r.Pu]], visible: true
-            }, [3]);
-
-            animX.push(r.Mx);
-            animY.push(r.My);
-            animZ.push(r.Pu);
-            animAngles.push(angleDeg);
-            animOpacities.push(1.0);
-            animColorStrs.push(_angleToRGBA(angleDeg, 1.0));
-
-            Plotly.restyle('plotlyPlot3D', {
-                x: [animX],
-                y: [animY],
-                z: [animZ],
-                'marker.color': [animColorStrs],
-                customdata: [animAngles]
-            }, [2]);
-
-            if (delay > 0) await _sleep(delay);
-        }
-    }
-
-    const completedNormally = _animShouldRun;
-    _animRunning = false;
-
-    // Reveal 3D surface mesh and hide all scatter animation points when 3D mesh is visible
-    if (el && el.data) {
-        Plotly.restyle(el, { visible: true }, [0]);
-        Plotly.restyle(el, { visible: false }, [2]);
-        Plotly.restyle(el, { visible: false }, [3]);
-    }
-
-    // Clear 2D section plot compression zone and NA line on completion
-    const el2D = document.getElementById('plotlyPlot2D');
-    if (el2D && el2D.data) {
-        Plotly.restyle(el2D, { x: [[]], y: [[]], visible: false }, [1, 3]);
-    }
-
-    if (completedNormally) {
-        const btn = document.getElementById('btnPlayPause');
-        if (btn) { btn.textContent = '▶ Play Again'; btn.disabled = false; }
-        const st = document.getElementById('lv-status');
-        if (st) st.textContent = '✓ Done';
-    }
-}
-
-function stopProcessAnimation() { _animShouldRun = false; }
-
-function handlePlayPause() {
-    if (_animRunning) {
-        stopProcessAnimation();
-        _animRunning = false;
-        const btn = document.getElementById('btnPlayPause');
-        if (btn) btn.textContent = '▶ Play';
-        const st = document.getElementById('lv-status');
-        if (st) st.textContent = 'Paused';
-    } else {
-        const btn = document.getElementById('btnPlayPause');
-        if (btn) btn.textContent = '⏸ Pause';
-        const st = document.getElementById('lv-status');
-        if (st) st.textContent = 'Running…';
-        startProcessAnimation(_animScale, _animCenterZ, _animColHeight);
-    }
-}
-
-function handleReset() {
-    stopProcessAnimation();
-    _animRunning = false;
-    _clearAnimationCanvas();
-    if (typeof resetPlayUI === 'function') {
-        resetPlayUI();
-    } else {
-        const btn = document.getElementById('btnPlayPause');
-        if (btn) { btn.textContent = '▶ Play'; btn.disabled = false; }
-    }
-    const st = document.getElementById('lv-status');
-    if (st) st.textContent = 'Idle';
-}
-
-function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-// ── Camera rotation ───────────────────────────────────────────────────────────
-const _CAM_R = 1.98;   // ≈ √(1.4²+1.4²)
-const _CAM_Z = 1.1;
-
-function filterByTheta(angleDeg) {
-    if (angleDeg === null || isNaN(angleDeg)) {
-        const livePlotData = document.getElementById('plotlyPlot3D')?.data?.[2];
-        if (livePlotData && Array.isArray(livePlotData.customdata)) {
-            const angles = livePlotData.customdata;
-            const colors = angles.map((aDeg) => _angleToRGBA(aDeg, 1.0));
-            Plotly.restyle('plotlyPlot3D', { 'marker.color': [colors] }, [2]);
-        }
-        return;
-    }
-
-    const theta = (angleDeg * Math.PI) / 180;
-    _setCameraForTheta(theta);
-}
-
-function _setCameraForTheta(theta) {
-    const angle = Math.PI / 2 + theta;   // CCW orbit — opposite to CW NA sweep
-    Plotly.relayout('plotlyPlot3D', {
-        'scene.camera': {
-            eye:    { x: _CAM_R * Math.cos(angle), y: _CAM_R * Math.sin(angle), z: _CAM_Z },
-            center: { x: 0, y: 0, z: 0 },
-            up:     { x: 0, y: 0, z: 1 }
-        }
-    });
-    
-    _highlightAngleOnMesh(theta);
-}
-
-function _highlightAngleOnMesh(targetTheta) {
-    if (_animRunning) return;
-
-    const targetDeg = Math.round((targetTheta * 180 / Math.PI) / 10) * 10;
-    const targetAngleIdx = Math.round(targetDeg / 10);
-
-    const livePlotData = document.getElementById('plotlyPlot3D').data[2];
-    if (livePlotData && Array.isArray(livePlotData.customdata)) {
-        const angles = livePlotData.customdata;
-        const step = 0.8 / 34;
-        const colors = angles.map((angleDeg) => {
-            const datasetAngleIndex = Math.round(angleDeg / 10);
-            const k = Math.abs(targetAngleIdx - datasetAngleIndex);
-            const opacity = Math.max(0.2, 1.0 - k * step);
-            return _angleToRGBA(angleDeg, opacity);
-        });
-        Plotly.restyle('plotlyPlot3D', {
-            'marker.color': [colors]
-        }, [2]);
-    }
-}
-
-// ── 2D Column Cross-Section Plotting ──────────────────────────────────────────
-function _update2DPlot(theta, Xu) {
-    const plot2DEl = document.getElementById('plotlyPlot2D');
-    if (!plot2DEl) return;
-
-    const isDark = !document.body.classList.contains('light-theme');
-    const textColor = isDark ? '#f3f4f6' : '#0f172a';
-    const gridColor = isDark ? '#2d3748' : '#e2e8f0';
-
-    const bHalf = maxX / 2;
-    const dHalf = maxY / 2;
-
-    // Helper to rotate point by +theta and apply side mirror (x -> -x) to align compression normal with (0, 1)
-    const rot = (px, py) => {
-        const cos = Math.cos(theta);
-        const sin = Math.sin(theta);
-        return {
-            x: -(px * cos - py * sin),
-            y: px * sin + py * cos
-        };
-    };
-
-    // 1. Column Outline (X: mm, Y: mm centered at 0,0, rotated by +theta)
-    let rawOutline = [];
-    if (sectionType === 'circular') {
-        const R = maxY / 2, Nc = 64;
-        for (let n = 0; n <= Nc; n++) {
-            const a = n * 2 * Math.PI / Nc;
-            rawOutline.push({ px: R * Math.cos(a), py: R * Math.sin(a) });
-        }
-    } else {
-        rawOutline = [
-            { px: -bHalf, py: -dHalf }, { px: bHalf, py: -dHalf },
-            { px: bHalf, py: dHalf }, { px: -bHalf, py: dHalf }, { px: -bHalf, py: -dHalf }
-        ];
-    }
-    const rotOutline = rawOutline.map(p => rot(p.px, p.py));
-
-    const outlineTrace = {
-        type: 'scatter', mode: 'lines',
-        x: rotOutline.map(p => p.x),
-        y: rotOutline.map(p => p.y),
-        fill: 'toself',
-        fillcolor: isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(226, 232, 240, 0.6)',
-        line: { color: isDark ? '#94a3b8' : '#475569', width: 2 },
-        name: 'Concrete Section', hoverinfo: 'skip'
-    };
-
-    // 2. Rebars (rotated by +theta)
-    const rotBars = circles.map(c => rot(c.x - bHalf, c.y - dHalf));
-    const rebarTrace = {
-        type: 'scatter', mode: 'markers',
-        x: rotBars.map(p => p.x),
-        y: rotBars.map(p => p.y),
-        marker: { size: 10, color: '#3b82f6', line: { color: '#1d4ed8', width: 1.5 } },
-        name: 'Rebars', hoverinfo: 'skip'
-    };
-
-    // 3. Neutral Axis (NA) & Compression Zone
-    const sinT = Math.sin(theta);
-    const cosT = Math.cos(theta);
-    let extent;
-
-    if (sectionType === 'circular') {
-        extent = maxY;
-    } else {
-        extent = maxX * Math.abs(sinT) + maxY * Math.abs(cosT);
-    }
-    const d = extent / 2 - Xu; // distance of NA from centroid along compression normal (sinθ, cosθ)
-
-    // In rotated frame (+theta):
-    // Compression normal (sinθ, cosθ) rotates to (0, 1).
-    // So the NA line in rotated frame is simply y = d (horizontal)!
-
-    // Compression Zone Polygon
-    let rawComp = [];
-    if (sectionType === 'circular') {
-        const R = maxY / 2, Nc2 = 64;
-        for (let n = 0; n < Nc2; n++) {
-            const alpha = n * 2 * Math.PI / Nc2;
-            const px = R * Math.cos(alpha), py = R * Math.sin(alpha);
-            if (px * sinT + py * cosT >= d - 1e-6) rawComp.push({ px, py });
-        }
-        if (Math.abs(d) <= R) {
-            const halfL = Math.sqrt(R * R - d * d);
-            rawComp.push({ px: d * sinT + halfL * (-cosT), py: d * cosT + halfL * sinT });
-            rawComp.push({ px: d * sinT - halfL * (-cosT), py: d * cosT - halfL * sinT });
-        }
-    } else {
-        const poly = [
-            { px: -bHalf, py: -dHalf }, { px: bHalf, py: -dHalf },
-            { px: bHalf, py: dHalf }, { px: -bHalf, py: dHalf }
-        ];
-        const N = poly.length;
-        for (let i = 0; i < N; i++) {
-            const cur = poly[i], nxt = poly[(i + 1) % N];
-            const dc = cur.px * sinT + cur.py * cosT;
-            const dn = nxt.px * sinT + nxt.py * cosT;
-            if (dc >= d) rawComp.push(cur);
-            if ((dc >= d) !== (dn >= d)) {
-                const t = (d - dc) / (dn - dc);
-                rawComp.push({ px: cur.px + t * (nxt.px - cur.px), py: cur.py + t * (nxt.py - cur.py) });
-            }
-        }
-    }
-    const rotComp = rawComp.map(p => rot(p.px, p.py));
-
-    const compTrace = {
-        type: 'scatter', mode: 'lines',
-        x: rotComp.map(p => p.x),
-        y: rotComp.map(p => p.y),
-        fill: 'toself',
-        fillcolor: 'rgba(239, 68, 68, 0.35)',
-        line: { color: 'rgba(239, 68, 68, 0.8)', width: 1.5 },
-        name: 'Compression Zone', hoverinfo: 'skip'
-    };
-
-    // Horizontal Neutral Axis line across plot span at y = d
-    const maxDim = Math.max(maxX, maxY) * 0.75;
-    const naTrace = {
-        type: 'scatter', mode: 'lines',
-        x: [-maxDim, maxDim],
-        y: [d, d],
-        line: { color: '#ef4444', width: 3, dash: 'dash' },
-        name: 'Neutral Axis', hoverinfo: 'skip'
-    };
-
-    const layout2D = {
-        margin: { t: 25, r: 25, l: 45, b: 40 },
-        paper_bgcolor: 'transparent',
-        plot_bgcolor: 'transparent',
-        xaxis: {
-            title: { text: 'X (mm)', font: { color: textColor, size: 11 } },
-            gridcolor: gridColor, tickfont: { color: textColor, size: 10 },
-            range: [-maxDim, maxDim], scaleanchor: 'y', scaleratio: 1
+    return {
+        section: {
+            shape: sectionType,
+            width: maxX,
+            depth: maxY,
+            fck: fck,
+            fy: fy,
+            Asc: Math.round(Asc),
+            pt: parseFloat((Asc / Ag * 100).toFixed(2)),
+            circles: circles
         },
-        yaxis: {
-            title: { text: 'Y (mm)', font: { color: textColor, size: 11 } },
-            gridcolor: gridColor, tickfont: { color: textColor, size: 10 },
-            range: [-maxDim, maxDim]
-        },
-        showlegend: false
+        animationSteps: getAllAnimationSteps()
     };
-
-    if (plot2DEl.data) {
-        Plotly.react(plot2DEl, [outlineTrace, compTrace, rebarTrace, naTrace], layout2D, { responsive: true });
-    } else {
-        Plotly.newPlot(plot2DEl, [outlineTrace, compTrace, rebarTrace, naTrace], layout2D, { responsive: true });
-    }
-}
-
-// ── Full render ───────────────────────────────────────────────────────────────
-function render3DPlot(meshData) {
-    const isDark    = !document.body.classList.contains('light-theme');
-    const textColor = isDark ? '#f3f4f6' : '#0f172a';
-    const gridColor = isDark ? '#2d3748' : '#e2e8f0';
-    const paperBg   = isDark ? '#161b26' : '#ffffff';
-
-    // Trace 0: failure surface
-    const surfaceTrace = {
-        type:'mesh3d', x:meshData.x, y:meshData.y, z:meshData.z,
-        i:meshData.i, j:meshData.j, k:meshData.k,
-        intensity: meshData.thetaDeg,
-        colorscale: _hsvColorscale(),
-        cmin: 0, cmax: 350,
-        showscale: false,
-        opacity:0.78, name:'Failure Envelope',
-        hovertemplate:'Mx: %{x:.1f} kNm<br>My: %{y:.1f} kNm<br>Pu: %{z:.1f} kN<extra></extra>'
-    };
-
-    const maxMu    = Math.max(...meshData.x.map(Math.abs), ...meshData.y.map(Math.abs)) || 100;
-    const minPu    = Math.min(...meshData.z);
-    const maxPu    = Math.max(...meshData.z);
-    const centerZ  = (maxPu + minPu) / 2;
-
-    _animScale = 1; _animCenterZ = centerZ; _animColHeight = (maxPu - minPu) * 0.35;
-
-    // Trace 1: current angle path line
-    const centTrace = {
-        type:'scatter3d', mode:'lines+markers', x:[], y:[], z:[],
-        line:{ color:'rgba(234,179,8,0.4)', width:2.5 },
-        marker:{ size:3.5, opacity:0.6 },
-        hoverinfo:'skip', showlegend:false, visible:true
-    };
-
-    // Trace 2: live growing scatter (animation)
-    const liveTrace = {
-        type:'scatter3d', mode:'markers', x:[], y:[], z:[],
-        customdata: [],
-        marker:{
-            size: 3.5,
-            color: []
-        },
-        hoverinfo:'skip', showlegend:false, visible:false
-    };
-
-    // Trace 3: active dot on 3D surface
-    const dotTrace = {
-        type:'scatter3d', mode:'markers',
-        x:[0], y:[0], z:[centerZ],
-        marker:{ size:8, color:'#ef4444' }, hoverinfo:'skip', showlegend:false
-    };
-
-    const axisLimit = maxMu * 1.15;
-
-    const layout = {
-        paper_bgcolor: paperBg,
-        margin: { t:0, r:0, l:0, b:0 },
-        scene: {
-            xaxis:{
-                title:{ text:'Mx (kNm)', font:{color:textColor} },
-                gridcolor:gridColor,
-                tickfont:{color:textColor},
-                range: [-axisLimit, axisLimit]
-            },
-            yaxis:{
-                title:{ text:'My (kNm)', font:{color:textColor} },
-                gridcolor:gridColor,
-                tickfont:{color:textColor},
-                range: [-axisLimit, axisLimit]
-            },
-            zaxis:{ title:{ text:'Pu (kN)',  font:{color:textColor} }, gridcolor:gridColor, tickfont:{color:textColor} },
-            camera:{ eye:{ x: 0, y: _CAM_R, z: _CAM_Z } },
-            aspectmode: 'cube'
-        },
-        showlegend: false
-    };
-
-    const plotEl = document.getElementById('plotlyPlot3D');
-    Plotly.newPlot(plotEl, [
-        surfaceTrace,      // 0
-        centTrace,         // 1
-        liveTrace,         // 2
-        dotTrace           // 3
-    ], layout, { responsive:true });
-
-    // Initial 2D Column & Camera setup
-    const initXu = maxY * 0.5;
-    lastHoveredPtInfo = { theta:0, Xu:initXu, Mx:0, My:0, Pu:centerZ };
-    _update2DPlot(0, initXu);
-    _setCameraForTheta(0);
-
-    plotEl.on('plotly_hover', function(data) {
-        if (_animRunning) return;
-        if (data.points.length > 0) {
-            const pt = calculatedPoints3D[data.points[0].pointIndex];
-            if (pt) {
-                lastHoveredPtInfo = pt;
-                _restyleColumn(pt);
-            }
-        }
-    });
-
-    return { scale: 1, centerZ, colHeight: (maxPu - minPu) * 0.35 };
-}
-
-// ── Restyle column on hover ───────────────────────────────────────────────────
-function _restyleColumn(ptInfo) {
-    // Update active dot position on 3D surface plot
-    Plotly.restyle('plotlyPlot3D', {
-        x: [[ptInfo.Mx]],
-        y: [[ptInfo.My]],
-        z: [[ptInfo.Pu]]
-    }, [3]);
-
-    // Update 2D cross-section graph
-    _update2DPlot(ptInfo.theta, ptInfo.Xu);
-
-    // Rotate viewport to match this bending angle
-    _setCameraForTheta(ptInfo.theta);
-}
-
-function updateProcessTraces() {
-    if (calculatedPoints3D.length === 0) return;
-    _restyleColumn(lastHoveredPtInfo);
 }
