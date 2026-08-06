@@ -422,15 +422,67 @@ function generate3DSurfaceData(progressCallback) {
 }
 
 // ── Real-time step-by-step playback engine ────────────────────────────────────
+
+// Fully resets the 3D canvas to a blank state before a (re)play starts:
+// clears the growing live-scatter trace, keeps the unused path-line trace
+// hidden and empty (it was rendering a stray connecting line across the
+// growing scatter when left populated/visible from a prior run), and hides
+// the active-point dot until the first real point is computed so no stale
+// marker lingers at the old position.
+function _clearAnimationCanvas() {
+    const el = document.getElementById('plotlyPlot3D');
+    if (el && el.data) {
+        // Trace 0: Failure surface mesh — ensure visible when reset/cleared
+        Plotly.restyle(el, { visible: true }, [0]);
+
+        // Trace 1: unused path line — force markers-only + hidden + empty
+        Plotly.restyle(el, {
+            x: [[]], y: [[]], z: [[]], mode: 'markers', visible: false
+        }, [1]);
+
+        // Trace 2: live growing scatter — wipe all accumulated points & hide when mesh is shown
+        Plotly.restyle(el, {
+            x: [[]], y: [[]], z: [[]],
+            'marker.color': [[]], customdata: [[]], visible: false
+        }, [2]);
+
+        // Trace 3: active point marker dot — wipe coordinates & hide
+        Plotly.restyle(el, {
+            x: [[]], y: [[]], z: [[]], visible: false
+        }, [3]);
+    }
+
+    // 2D Section & Neutral Axis Plot — clear compression zone (Trace 1) and NA line (Trace 3)
+    const el2D = document.getElementById('plotlyPlot2D');
+    if (el2D && el2D.data) {
+        Plotly.restyle(el2D, { x: [[]], y: [[]], visible: false }, [1, 3]);
+    }
+    const naTag = document.getElementById('naDepthTag');
+    if (naTag) naTag.innerHTML = 'X<sub>u</sub> = — mm';
+
+    // Reset the live info panel progress bars
+    const b1 = document.getElementById('lv-angle-bar');
+    const b2 = document.getElementById('lv-xu-bar');
+    if (b1) b1.style.width = '0%';
+    if (b2) b2.style.width = '0%';
+    const st = document.getElementById('lv-status');
+    if (st) st.textContent = 'Idle';
+}
+
 async function startProcessAnimation(scale, centerZ, colHeight) {
     _animRunning = true;
     _animShouldRun = true;
 
     const speedEl = document.getElementById('animSpeed');
 
-    // Wipe live scatter (Trace 2) and path line (Trace 1)
-    Plotly.restyle('plotlyPlot3D', { x:[[]], y:[[]], z:[[]], 'marker.color':[[]], customdata:[[]], visible:true }, [2]);
-    Plotly.restyle('plotlyPlot3D', { x:[[]], y:[[]], z:[[]], visible:false }, [1]);
+    // Clear canvas traces and hide the 3D surface mesh during sweep animation
+    // so live points build up on a clean canvas
+    _clearAnimationCanvas();
+    const el = document.getElementById('plotlyPlot3D');
+    if (el && el.data) {
+        Plotly.restyle(el, { visible: false }, [0]);
+        Plotly.restyle(el, { visible: true }, [2]);
+    }
 
     const animX = [];
     const animY = [];
@@ -483,9 +535,9 @@ async function startProcessAnimation(scale, centerZ, colHeight) {
             _updateLivePanel(theta, xu, r, angleDeg, 36, ptIdx, pathPts.length);
             _update2DPlot(theta, xu);
 
-            // Update active dot on 3D surface plot
+            // Update active dot on 3D surface plot (re-shown after the canvas reset)
             Plotly.restyle('plotlyPlot3D', {
-                x: [[r.Mx]], y: [[r.My]], z: [[r.Pu]]
+                x: [[r.Mx]], y: [[r.My]], z: [[r.Pu]], visible: true
             }, [3]);
 
             animX.push(r.Mx);
@@ -507,19 +559,83 @@ async function startProcessAnimation(scale, centerZ, colHeight) {
         }
     }
 
+    const completedNormally = _animShouldRun;
     _animRunning = false;
-    const btn = document.getElementById('btnPlayPause');
-    if (btn) { btn.textContent = '▶ Play Again'; btn.disabled = false; }
-    const st = document.getElementById('lv-status');
-    if (st) st.textContent = '✓ Done';
+
+    // Reveal 3D surface mesh and hide all scatter animation points when 3D mesh is visible
+    if (el && el.data) {
+        Plotly.restyle(el, { visible: true }, [0]);
+        Plotly.restyle(el, { visible: false }, [2]);
+        Plotly.restyle(el, { visible: false }, [3]);
+    }
+
+    // Clear 2D section plot compression zone and NA line on completion
+    const el2D = document.getElementById('plotlyPlot2D');
+    if (el2D && el2D.data) {
+        Plotly.restyle(el2D, { x: [[]], y: [[]], visible: false }, [1, 3]);
+    }
+
+    if (completedNormally) {
+        const btn = document.getElementById('btnPlayPause');
+        if (btn) { btn.textContent = '▶ Play Again'; btn.disabled = false; }
+        const st = document.getElementById('lv-status');
+        if (st) st.textContent = '✓ Done';
+    }
 }
 
 function stopProcessAnimation() { _animShouldRun = false; }
+
+function handlePlayPause() {
+    if (_animRunning) {
+        stopProcessAnimation();
+        _animRunning = false;
+        const btn = document.getElementById('btnPlayPause');
+        if (btn) btn.textContent = '▶ Play';
+        const st = document.getElementById('lv-status');
+        if (st) st.textContent = 'Paused';
+    } else {
+        const btn = document.getElementById('btnPlayPause');
+        if (btn) btn.textContent = '⏸ Pause';
+        const st = document.getElementById('lv-status');
+        if (st) st.textContent = 'Running…';
+        startProcessAnimation(_animScale, _animCenterZ, _animColHeight);
+    }
+}
+
+function handleReset() {
+    stopProcessAnimation();
+    _animRunning = false;
+    _clearAnimationCanvas();
+    if (typeof resetPlayUI === 'function') {
+        resetPlayUI();
+    } else {
+        const btn = document.getElementById('btnPlayPause');
+        if (btn) { btn.textContent = '▶ Play'; btn.disabled = false; }
+    }
+    const st = document.getElementById('lv-status');
+    if (st) st.textContent = 'Idle';
+}
+
 function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── Camera rotation ───────────────────────────────────────────────────────────
 const _CAM_R = 1.98;   // ≈ √(1.4²+1.4²)
 const _CAM_Z = 1.1;
+
+function filterByTheta(angleDeg) {
+    if (angleDeg === null || isNaN(angleDeg)) {
+        const livePlotData = document.getElementById('plotlyPlot3D')?.data?.[2];
+        if (livePlotData && Array.isArray(livePlotData.customdata)) {
+            const angles = livePlotData.customdata;
+            const colors = angles.map((aDeg) => _angleToRGBA(aDeg, 1.0));
+            Plotly.restyle('plotlyPlot3D', { 'marker.color': [colors] }, [2]);
+        }
+        return;
+    }
+
+    const theta = (angleDeg * Math.PI) / 180;
+    _setCameraForTheta(theta);
+}
 
 function _setCameraForTheta(theta) {
     const angle = Math.PI / 2 + theta;   // CCW orbit — opposite to CW NA sweep
@@ -568,17 +684,17 @@ function _update2DPlot(theta, Xu) {
     const bHalf = maxX / 2;
     const dHalf = maxY / 2;
 
-    // Helper to rotate point by +theta around origin so section matches horizontal NA (y = d)
+    // Helper to rotate point by +theta and apply side mirror (x -> -x) to align compression normal with (0, 1)
     const rot = (px, py) => {
         const cos = Math.cos(theta);
         const sin = Math.sin(theta);
         return {
-            x: px * cos - py * sin,
+            x: -(px * cos - py * sin),
             y: px * sin + py * cos
         };
     };
 
-    // 1. Column Outline (X: mm, Y: mm centered at 0,0, rotated by -theta)
+    // 1. Column Outline (X: mm, Y: mm centered at 0,0, rotated by +theta)
     let rawOutline = [];
     if (sectionType === 'circular') {
         const R = maxY / 2, Nc = 64;
@@ -604,7 +720,7 @@ function _update2DPlot(theta, Xu) {
         name: 'Concrete Section', hoverinfo: 'skip'
     };
 
-    // 2. Rebars (rotated by -theta)
+    // 2. Rebars (rotated by +theta)
     const rotBars = circles.map(c => rot(c.x - bHalf, c.y - dHalf));
     const rebarTrace = {
         type: 'scatter', mode: 'markers',
@@ -626,7 +742,7 @@ function _update2DPlot(theta, Xu) {
     }
     const d = extent / 2 - Xu; // distance of NA from centroid along compression normal (sinθ, cosθ)
 
-    // In rotated frame (-theta):
+    // In rotated frame (+theta):
     // Compression normal (sinθ, cosθ) rotates to (0, 1).
     // So the NA line in rotated frame is simply y = d (horizontal)!
 
