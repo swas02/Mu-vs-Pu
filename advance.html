@@ -252,15 +252,25 @@
 
             <div class="card-header" style="margin-bottom:0;">
                 <div>
-                    <div class="card-title">Biaxial P – Mx – My Capacity Surface</div>
+                    <div class="card-title">Biaxial P – Mx – My Capacity Surface & 2D Section</div>
                     <div style="font-size:.8rem;color:var(--text-secondary);margin-top:.2rem;">
-                        Faint column model embedded at origin. Hover surface → column updates live.
+                        Hover surface → 2D cross-section updates live with Neutral Axis.
                         Enable <em>Show Process</em> → press <em>Play</em> to watch real-time computation.
                     </div>
                 </div>
             </div>
 
-            <div id="plotlyPlot3D" style="width:100%;flex:1;min-height:0;"></div>
+            <!-- Two-column / Grid display for 3D Surface & 2D Column Cross-Section -->
+            <div style="flex:1; display:flex; gap:1rem; min-height:0; width:100%;">
+                <div id="plotlyPlot3D" style="flex:1.4; height:100%; min-width:0;"></div>
+                <div style="flex:1; height:100%; min-width:0; display:flex; flex-direction:column; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:.5rem; padding:.5rem;">
+                    <div style="font-size:.85rem; font-weight:700; color:var(--text-primary); padding:.2rem .5rem .4rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+                        <span>Column Cross-Section (2D)</span>
+                        <span style="font-size:.75rem; font-weight:500; color:var(--text-secondary);">True Cross-Section & NA</span>
+                    </div>
+                    <div id="plotlyPlot2D" style="flex:1; width:100%; min-height:0;"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
