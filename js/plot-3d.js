@@ -15,6 +15,55 @@ let _animCenterZ   = 0;
 let _animColHeight = 0;
 let _animFloorZ    = 0;
 
+// ── Shared angle → color mapping (hue gradient used for both the failure-
+//    surface mesh and the live scatter trace) ─────────────────────────────────
+// Stops: [t (0–1 along 0°–350°), hue, saturation%, lightness%]
+const _HSV_STOPS = [
+    [0,     0,   90, 60], [0.056, 20,  90, 60],
+    [0.111, 40,  90, 60], [0.167, 60,  90, 58],
+    [0.222, 80,  90, 55], [0.278, 120, 90, 52],
+    [0.333, 155, 90, 50], [0.389, 180, 90, 50],
+    [0.444, 200, 90, 55], [0.5,   220, 90, 60],
+    [0.556, 240, 90, 62], [0.611, 260, 90, 62],
+    [0.667, 280, 90, 62], [0.722, 300, 90, 60],
+    [0.778, 320, 90, 60], [0.833, 340, 90, 60],
+    [1,     360, 90, 60]
+];
+
+// Plotly colorscale form (for the mesh3d surface trace, which supports colorscales fine)
+function _hsvColorscale() {
+    return _HSV_STOPS.map(([t, h, s, l]) => [t, `hsl(${h},${s}%,${l}%)`]);
+}
+
+function _hslToRgb(h, s, l) {
+    s /= 100; l /= 100;
+    const k = n => (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    return [Math.round(255 * f(0)), Math.round(255 * f(8)), Math.round(255 * f(4))];
+}
+
+// Interpolate hue/sat/light for a bending angle (0–350°) and bake the given
+// opacity directly into an rgba() string. Plotly's scatter3d does NOT reliably
+// honor per-point marker.opacity arrays, so opacity must be encoded in the
+// color itself to actually render per-point fading.
+function _angleToRGBA(angleDeg, opacity) {
+    const t = Math.max(0, Math.min(1, angleDeg / 350));
+    let lo = _HSV_STOPS[0], hi = _HSV_STOPS[_HSV_STOPS.length - 1];
+    for (let i = 0; i < _HSV_STOPS.length - 1; i++) {
+        if (t >= _HSV_STOPS[i][0] && t <= _HSV_STOPS[i + 1][0]) {
+            lo = _HSV_STOPS[i]; hi = _HSV_STOPS[i + 1]; break;
+        }
+    }
+    const span = hi[0] - lo[0];
+    const f = span > 0 ? (t - lo[0]) / span : 0;
+    const h = lo[1] + f * (hi[1] - lo[1]);
+    const s = lo[2] + f * (hi[2] - lo[2]);
+    const l = lo[3] + f * (hi[3] - lo[3]);
+    const [r, g, b] = _hslToRgb(h, s, l);
+    return `rgba(${r},${g},${b},${opacity.toFixed(3)})`;
+}
+
 // ── Xu sweep list for one angle ───────────────────────────────────────────────
 function _xuList(extent) {
     const divisions = 40;
@@ -377,33 +426,66 @@ async function startProcessAnimation(scale, centerZ, colHeight) {
     _animRunning = true;
     _animShouldRun = true;
 
-    const numAngles = 36;
     const speedEl   = document.getElementById('animSpeed');
 
-    // Wipe live scatter
-    Plotly.restyle('plotlyPlot3D', { x:[[]], y:[[]], z:[[]], visible:true }, [10]);
+    // Wipe live scatter (Trace 10) and path line (Trace 9)
+    Plotly.restyle('plotlyPlot3D', { x:[[]], y:[[]], z:[[]], 'marker.color':[[]], customdata:[[]], visible:true }, [10]);
+    Plotly.restyle('plotlyPlot3D', { x:[[]], y:[[]], z:[[]], visible:false }, [9]);
 
-    for (let aIdx = 0; aIdx < numAngles && _animShouldRun; aIdx++) {
+    const animX = [];
+    const animY = [];
+    const animZ = [];
+    const animAngles = [];      // angleDeg per point (for recomputing fade later)
+    const animOpacities = [];   // current opacity per point (0.2–1.0)
+    const animColorStrs = [];   // rgba() string per point, opacity baked in — this is what actually renders
+
+    // 35 angle datasets: 10°, 20°, ..., 350° (aIdx from 1 to 35)
+    for (let aIdx = 1; aIdx <= 35 && _animShouldRun; aIdx++) {
         const angleDeg = aIdx * 10;
         const theta    = angleDeg * Math.PI / 180;
         const ctx      = _buildAngleContext(theta);
         const xuList   = _xuList(ctx.extent);
 
+        // Precompute all points for this angle
+        const pathPts = [];
+
+        for (let xIdx = 0; xIdx < xuList.length; xIdx++) {
+            const xu = xuList[xIdx];
+            try {
+                const r = _computeOnePoint(theta, xu, ctx.extent, ctx.rotatedVertices, ctx.rotatedBars, ctx.minY);
+                if (!isNaN(r.Pu) && !isNaN(r.Mx)) {
+                    pathPts.push({ xu, r });
+                }
+            } catch(e) {}
+        }
+
+        if (pathPts.length === 0) continue;
+
+        // Fade all previously plotted points down one more step now that a new
+        // angle is starting (the new angle's own points aren't in animX yet, so
+        // this only touches earlier angles). Opacity is re-baked into each
+        // point's rgba() color string, since scatter3d ignores per-point
+        // marker.opacity arrays.
+        {
+            const step = 0.8 / 34; // 0.0235294118
+            for (let idx = 0; idx < animOpacities.length; idx++) {
+                const datasetAngleIndex = Math.round(animAngles[idx] / 10); // 1 for 10°, 2 for 20°, ..., aIdx for current
+                const k = aIdx - datasetAngleIndex; // steps behind newest dataset
+                const opacity = Math.max(0.2, 1.0 - k * step);
+                animOpacities[idx] = opacity;
+                animColorStrs[idx] = _angleToRGBA(animAngles[idx], opacity);
+            }
+        }
+
         // Rotate the 3D viewport so the NA line always faces the viewer
         _setCameraForTheta(theta);
 
-        for (let xIdx = 0; xIdx < xuList.length && _animShouldRun; xIdx++) {
-            const xu    = xuList[xIdx];
+        for (let ptIdx = 0; ptIdx < pathPts.length && _animShouldRun; ptIdx++) {
+            const { xu, r } = pathPts[ptIdx];
             const delay = speedEl ? parseInt(speedEl.value) : 20;
 
-            let r;
-            try {
-                r = _computeOnePoint(theta, xu, ctx.extent, ctx.rotatedVertices, ctx.rotatedBars, ctx.minY);
-            } catch(e) { continue; }
-            if (isNaN(r.Pu) || isNaN(r.Mx)) continue;
-
             // Live panel
-            _updateLivePanel(theta, xu, r, angleDeg, numAngles, xIdx, xuList.length);
+            _updateLivePanel(theta, xu, r, angleDeg, 36, ptIdx, pathPts.length);
 
             // Update column model in-place
             const showP = document.getElementById('showProcess')?.checked ?? true;
@@ -416,10 +498,21 @@ async function startProcessAnimation(scale, centerZ, colHeight) {
                 visible: [true, true, true, true, true, showP]
             }, [3, 4, 5, 6, 7, 8]);
 
-            // Grow the live scatter cloud — include color value (angleDeg) per point
-            await Plotly.extendTraces('plotlyPlot3D', {
-                x: [[r.Mx]], y: [[r.My]], z: [[r.Pu]],
-                'marker.color': [[angleDeg]]
+            // Trace this point into the path (Trace 10) as the column reaches it —
+            // the newest point always gets opacity 1.0, matching the column's current position.
+            animX.push(r.Mx);
+            animY.push(r.My);
+            animZ.push(r.Pu);
+            animAngles.push(angleDeg);
+            animOpacities.push(1.0);
+            animColorStrs.push(_angleToRGBA(angleDeg, 1.0));
+
+            Plotly.restyle('plotlyPlot3D', {
+                x: [animX],
+                y: [animY],
+                z: [animZ],
+                'marker.color': [animColorStrs],
+                customdata: [animAngles]
             }, [10]);
 
             if (delay > 0) await _sleep(delay);
@@ -460,6 +553,33 @@ function _setCameraForTheta(theta) {
             up:     { x: 0, y: 0, z: 1 }
         }
     });
+    
+    // Highlight the selected angle on the failure surface by updating its colorscale/colors
+    _highlightAngleOnMesh(theta);
+}
+
+// Dynamically fades the live trace points (Trace 10) so the angle under the
+// camera stays brightest, keeping the main 3D surface plane (Trace 0) untouched.
+function _highlightAngleOnMesh(targetTheta) {
+    if (_animRunning) return; // Animation loop handles its own fading dynamically
+
+    const targetDeg = Math.round((targetTheta * 180 / Math.PI) / 10) * 10;
+    const targetAngleIdx = Math.round(targetDeg / 10);
+
+    const livePlotData = document.getElementById('plotlyPlot3D').data[10];
+    if (livePlotData && Array.isArray(livePlotData.customdata)) {
+        const angles = livePlotData.customdata;
+        const step = 0.8 / 34; // 0.0235294118
+        const colors = angles.map((angleDeg) => {
+            const datasetAngleIndex = Math.round(angleDeg / 10);
+            const k = Math.abs(targetAngleIdx - datasetAngleIndex);
+            const opacity = Math.max(0.2, 1.0 - k * step);
+            return _angleToRGBA(angleDeg, opacity);
+        });
+        Plotly.restyle('plotlyPlot3D', {
+            'marker.color': [colors]
+        }, [10]);
+    }
 }
 
 // ── Full render ───────────────────────────────────────────────────────────────
@@ -470,22 +590,11 @@ function render3DPlot(meshData) {
     const paperBg   = isDark ? '#161b26' : '#ffffff';
 
     // Trace 0: failure surface — each angle (0°–350°) gets a unique hue via HSV colorscale
-    const _hsvScale = [
-        [0,     'hsl(0,90%,60%)'],   [0.056, 'hsl(20,90%,60%)'],
-        [0.111, 'hsl(40,90%,60%)'],  [0.167, 'hsl(60,90%,58%)'],
-        [0.222, 'hsl(80,90%,55%)'],  [0.278, 'hsl(120,90%,52%)'],
-        [0.333, 'hsl(155,90%,50%)'], [0.389, 'hsl(180,90%,50%)'],
-        [0.444, 'hsl(200,90%,55%)'], [0.5,   'hsl(220,90%,60%)'],
-        [0.556, 'hsl(240,90%,62%)'], [0.611, 'hsl(260,90%,62%)'],
-        [0.667, 'hsl(280,90%,62%)'], [0.722, 'hsl(300,90%,60%)'],
-        [0.778, 'hsl(320,90%,60%)'], [0.833, 'hsl(340,90%,60%)'],
-        [1,     'hsl(360,90%,60%)']
-    ];
     const surfaceTrace = {
         type:'mesh3d', x:meshData.x, y:meshData.y, z:meshData.z,
         i:meshData.i, j:meshData.j, k:meshData.k,
         intensity: meshData.thetaDeg,   // color driven by bending angle, not Pu
-        colorscale: _hsvScale,
+        colorscale: _hsvColorscale(),
         cmin: 0, cmax: 350,
         showscale: false,
         opacity:0.78, name:'Failure Envelope',
@@ -595,36 +704,50 @@ function render3DPlot(meshData) {
         hoverinfo:'skip', name:'Comp. Block', visible:showProcess
     };
 
-    // Trace 9: (reserved / centroid dot placeholder)
+    // Trace 9: current angle path line
     const centTrace = {
-        type:'scatter3d', mode:'markers', x:[], y:[], z:[],
-        marker:{ size:8, color:'#eab308' }, hoverinfo:'skip', showlegend:false, visible:showProcess
+        type:'scatter3d', mode:'lines+markers', x:[], y:[], z:[],
+        line:{ color:'rgba(234,179,8,0.4)', width:2.5 },
+        marker:{ size:3.5, opacity:0.6 },
+        hoverinfo:'skip', showlegend:false, visible:showProcess
     };
 
     // Trace 10: live growing scatter (animation)
-    // Live trace: color array grows per-point — each angle degree maps to a hue
+    // Colors are rgba() strings with per-point opacity baked in (customdata holds
+    // the raw angleDeg per point so hover-highlighting can recompute fades).
     const liveTrace = {
         type:'scatter3d', mode:'markers', x:[], y:[], z:[],
+        customdata: [],
         marker:{
             size: 3.5,
-            color: [],          // filled with angleDeg values during animation
-            colorscale: _hsvScale,
-            cmin: 0, cmax: 350,
-            showscale: false,
-            opacity: 0.92
+            color: []   // filled with rgba(...) strings during animation
         },
         hoverinfo:'skip', showlegend:false, visible:false
     };
+
+    // Calculate a constant axis limit to prevent dynamic resizing/pumping
+    const maxColumnBendingLimit = Math.max(maxX, maxY) * scale;
+    const axisLimit = Math.max(maxMu, maxColumnBendingLimit) * 1.15; // 15% padding for readability
 
     const layout = {
         paper_bgcolor: paperBg,
         margin: { t:0, r:0, l:0, b:0 },
         scene: {
-            xaxis:{ title:{ text:'Mx (kNm)', font:{color:textColor} }, gridcolor:gridColor, tickfont:{color:textColor} },
-            yaxis:{ title:{ text:'My (kNm)', font:{color:textColor} }, gridcolor:gridColor, tickfont:{color:textColor} },
+            xaxis:{
+                title:{ text:'Mx (kNm)', font:{color:textColor} },
+                gridcolor:gridColor,
+                tickfont:{color:textColor},
+                range: [-axisLimit, axisLimit]
+            },
+            yaxis:{
+                title:{ text:'My (kNm)', font:{color:textColor} },
+                gridcolor:gridColor,
+                tickfont:{color:textColor},
+                range: [-axisLimit, axisLimit]
+            },
             zaxis:{ title:{ text:'Pu (kN)',  font:{color:textColor} }, gridcolor:gridColor, tickfont:{color:textColor} },
             camera:{ eye:{ x: 0, y: _CAM_R, z: _CAM_Z } },  // θ=0 → edge-on NA view
-            aspectmode: 'auto'
+            aspectmode: 'cube'
         },
         showlegend: false
     };
