@@ -202,6 +202,8 @@ function applySection(data) {
     purgeDiagramState();
     updateAll();
     cacheSectionToLocalStorage();
+    if (typeof workerCachedAnimationSteps !== 'undefined') workerCachedAnimationSteps = null;
+    if (typeof triggerBackgroundWorkerCalc === 'function') triggerBackgroundWorkerCalc();
 }
 
 // Serialize current section state for localStorage caching

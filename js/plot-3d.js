@@ -193,11 +193,40 @@ function getPointData(thetaDeg, Xu) {
     };
 }
 
+let workerCachedAnimationSteps = null;
+let calcWorkerInstance = null;
+
+function triggerBackgroundWorkerCalc() {
+    if (typeof window === 'undefined' || !window.Worker) return;
+    try {
+        if (calcWorkerInstance) {
+            calcWorkerInstance.terminate();
+        }
+        calcWorkerInstance = new Worker('./js/calc-worker.js');
+        calcWorkerInstance.onmessage = function(e) {
+            if (e.data && e.data.type === 'STEPS_COMPUTED' && Array.isArray(e.data.steps)) {
+                workerCachedAnimationSteps = e.data.steps;
+            }
+        };
+        const sectionData = typeof getCurrentSectionData === 'function' ? getCurrentSectionData() : {
+            sectionType, maxX, maxY, fck, fy, circles
+        };
+        calcWorkerInstance.postMessage(sectionData);
+    } catch (err) {
+        console.warn("Web Worker notice, falling back to main thread:", err);
+    }
+}
+
 /**
  * Generates and returns the complete array of pre-computed animation step objects across all angles and Xu depths.
+ * Utilizes Web Worker cached steps for 60fps smooth playback with main-thread fallback.
  * @returns {Array<object>} Array of all animation step objects
  */
 function getAllAnimationSteps() {
+    if (workerCachedAnimationSteps && workerCachedAnimationSteps.length > 0) {
+        return workerCachedAnimationSteps;
+    }
+
     const numAngles = 36;
     const steps = [];
     let globalStepIdx = 0;
@@ -220,13 +249,12 @@ function getAllAnimationSteps() {
         }
     }
 
-    const negativeXuSteps = steps.filter(s => s.Xu < 0);
-    if (negativeXuSteps.length > 0) {
-        console.warn(negativeXuSteps.length, negativeXuSteps);
-    }
-
+    // Cache steps locally
+    workerCachedAnimationSteps = steps;
     return steps;
 }
+
+let activeDemandPoint = null;
 
 /**
  * Evaluates a design demand load point (Pu, Mux, Muy) against the 3D capacity surface.
@@ -262,20 +290,24 @@ function checkDemandLoadPoint(puD, muxD, muyD) {
     const dcRatio = muCap > 0 ? (muD / muCap) : 999;
     const isSafe = dcRatio <= 1.0;
 
-    return {
+    activeDemandPoint = {
         puD, muxD, muyD, muD, thetaDegD, closestAngle,
         muCap, dcRatio, isSafe
     };
+
+    return activeDemandPoint;
 }
 
 let activeRangeStart = 1;
 let activeRangeEnd = 1080;
+let currentAnimStep = 1;
 
 function setAnimationRange(minStep, maxStep) {
     const allSteps = getAllAnimationSteps();
-    const total = allSteps.length || 1080;
+    const total = (allSteps && allSteps.length) ? allSteps.length : 1080;
     activeRangeStart = Math.max(1, Math.min(total, minStep || 1));
-    activeRangeEnd = Math.max(activeRangeStart, Math.min(total, maxStep || total));
+    const targetEnd = (maxStep !== undefined && maxStep !== null) ? maxStep : total;
+    activeRangeEnd = Math.max(activeRangeStart, Math.min(total, targetEnd));
 }
 
 /**
@@ -314,8 +346,8 @@ function plot3DSteps(startStep, endStep) {
     // If activeRangeStart > 1, we are inspecting a specific angle (Angle mode), so only plot rangeSteps for that angle!
     const isFullSweep = (activeRangeStart === 1);
     const accumulatedSteps = isFullSweep ? allSteps.slice(0, maxIdx + 1) : rangeSteps;
-    const histSteps = isFullSweep ? accumulatedSteps.filter(s => s.thetaDeg !== activeAngle) : [];
-    const activeSteps = isFullSweep ? accumulatedSteps.filter(s => s.thetaDeg === activeAngle) : rangeSteps;
+    const histSteps = isFullSweep ? accumulatedSteps.filter(s => Math.abs(s.thetaDeg - activeAngle) > 0.01) : [];
+    const activeSteps = isFullSweep ? accumulatedSteps.filter(s => Math.abs(s.thetaDeg - activeAngle) <= 0.01) : rangeSteps;
 
     const phaseInfo = {
         startStep: minIdx + 1,
@@ -448,7 +480,35 @@ function plot3DSteps(startStep, endStep) {
             showlegend: false
         };
 
-        Plotly.react(el3D, [histTrace, activeTrace], layout, { responsive: true });
+        // Optional Trace 2: Demand Load Point Marker (if active)
+        const traces = [histTrace, activeTrace];
+        if (activeDemandPoint) {
+            traces.push({
+                type: 'scatter3d',
+                mode: 'markers+text',
+                x: [activeDemandPoint.muxD],
+                y: [activeDemandPoint.muyD],
+                z: [activeDemandPoint.puD],
+                marker: {
+                    size: 8,
+                    color: activeDemandPoint.isSafe ? '#10b981' : '#ef4444',
+                    symbol: 'diamond',
+                    line: { color: '#ffffff', width: 2 }
+                },
+                text: [activeDemandPoint.isSafe ? 'Demand Load (PASS)' : 'Demand Load (FAIL)'],
+                textposition: 'top center',
+                hoverinfo: 'text',
+                hovertext: `<b>Demand Load Point</b><br>` +
+                           `<b>Mx,D:</b> ${activeDemandPoint.muxD.toFixed(1)} kNm<br>` +
+                           `<b>My,D:</b> ${activeDemandPoint.muyD.toFixed(1)} kNm<br>` +
+                           `<b>Pu,D:</b> ${activeDemandPoint.puD.toFixed(1)} kN<br>` +
+                           `<b>Resultant Mu,D:</b> ${activeDemandPoint.muD.toFixed(1)} kNm<br>` +
+                           `<b>D/C Ratio:</b> ${activeDemandPoint.dcRatio.toFixed(2)} (${activeDemandPoint.isSafe ? 'PASS' : 'FAIL'})`,
+                name: 'Demand Point'
+            });
+        }
+
+        Plotly.react(el3D, traces, layout, { responsive: true });
     }
 
     const lastStep = rangeSteps[rangeSteps.length - 1];
@@ -574,15 +634,51 @@ function plot3DMeshSurface() {
             showlegend: false
         };
 
-        Plotly.react(el3D, [surfaceTrace], layout, { responsive: true });
+        const meshTraces = [surfaceTrace];
+        if (activeDemandPoint) {
+            meshTraces.push({
+                type: 'scatter3d',
+                mode: 'markers+text',
+                x: [activeDemandPoint.muxD],
+                y: [activeDemandPoint.muyD],
+                z: [activeDemandPoint.puD],
+                marker: {
+                    size: 8,
+                    color: activeDemandPoint.isSafe ? '#10b981' : '#ef4444',
+                    symbol: 'diamond',
+                    line: { color: '#ffffff', width: 2 }
+                },
+                text: [activeDemandPoint.isSafe ? 'Demand Load (PASS)' : 'Demand Load (FAIL)'],
+                textposition: 'top center',
+                hoverinfo: 'text',
+                hovertext: `<b>Demand Load Point</b><br>` +
+                           `<b>Mx,D:</b> ${activeDemandPoint.muxD.toFixed(1)} kNm<br>` +
+                           `<b>My,D:</b> ${activeDemandPoint.muyD.toFixed(1)} kNm<br>` +
+                           `<b>Pu,D:</b> ${activeDemandPoint.puD.toFixed(1)} kN<br>` +
+                           `<b>Resultant Mu,D:</b> ${activeDemandPoint.muD.toFixed(1)} kNm<br>` +
+                           `<b>D/C Ratio:</b> ${activeDemandPoint.dcRatio.toFixed(2)} (${activeDemandPoint.isSafe ? 'PASS' : 'FAIL'})`,
+                name: 'Demand Point'
+            });
+        }
+
+        Plotly.react(el3D, meshTraces, layout, { responsive: true });
     }
 }
 
-// ── Animation Engine State & Controls ─────────────────────────────────────────
-let currentAnimStep = 1;
+let animSpeedMultiplier = 3; // Default 3x Fast
 let isAnimPlaying = false;
 let animTimer = null;
-let animSpeedMs = 40;
+
+function setAnimationSpeed(speedMultiplier) {
+    animSpeedMultiplier = parseFloat(speedMultiplier) || 5;
+}
+
+function _getStepStride() {
+    if (animSpeedMultiplier >= 10) return 15; // 10x Ultra: 1st, mid, and last (3 points per angle)
+    if (animSpeedMultiplier >= 5)  return 6;  // 5x Fast: 5 key points per angle
+    if (animSpeedMultiplier >= 2)  return 3;  // 2x Rapid: 10 key points per angle
+    return 1;                                 // 1x / 0.5x: All 30 points per angle
+}
 
 function _syncAnimUI(info) {
     const playBtn = document.getElementById('animPlayPauseBtn');
@@ -648,6 +744,104 @@ function append3DStep(stepNum) {
     };
 }
 
+/**
+ * Generates subsampled intermediate step indices between the 1st and last step for each angle block,
+ * based on the selected animation speed multiplier.
+ * @param {number} totalSteps - Total number of animation steps
+ * @param {number} speedMultiplier - Speed multiplier (e.g., 1x, 2x, 5x, 10x)
+ * @returns {Array<number>} Array of step numbers (1-indexed) to render during animation playback
+ */
+function generateIntermediateAnimationSteps(totalSteps, speedMultiplier) {
+    const allSteps = getAllAnimationSteps();
+    if (!allSteps || allSteps.length === 0) return [];
+    
+    // For 1x or lower speed, return all step indices (1-indexed)
+    if (speedMultiplier <= 1) {
+        const fullSteps = [];
+        for (let i = 1; i <= allSteps.length; i++) fullSteps.push(i);
+        return fullSteps;
+    }
+
+    // Group steps by their exact angle thetaDeg
+    const angleGroups = [];
+    let currentGroup = [];
+    let currentAngle = null;
+
+    for (let i = 0; i < allSteps.length; i++) {
+        const s = allSteps[i];
+        const stepNum = i + 1; // 1-indexed
+        if (currentAngle === null || Math.abs(s.thetaDeg - currentAngle) <= 0.01) {
+            currentGroup.push(stepNum);
+            currentAngle = s.thetaDeg;
+        } else {
+            if (currentGroup.length > 0) angleGroups.push(currentGroup);
+            currentGroup = [stepNum];
+            currentAngle = s.thetaDeg;
+        }
+    }
+    if (currentGroup.length > 0) angleGroups.push(currentGroup);
+
+    // Determine target intermediate step count per angle group based on speed (capped at 3x max)
+    let pointsPerGroup;
+    if (speedMultiplier >= 3) {
+        pointsPerGroup = 6; // 3x Fast: 6 key intermediate points per angle block
+    } else if (speedMultiplier >= 2) {
+        pointsPerGroup = 12; // 2x Rapid: 12 key points per angle block
+    } else {
+        pointsPerGroup = 20;
+    }
+
+    const stepSequence = [];
+
+    for (let g = 0; g < angleGroups.length; g++) {
+        const group = angleGroups[g];
+        if (group.length === 0) continue;
+
+        if (pointsPerGroup <= 2 || group.length <= 2) {
+            stepSequence.push(group[0]);
+            if (group.length > 1) {
+                stepSequence.push(group[group.length - 1]);
+            }
+        } else {
+            const count = Math.min(pointsPerGroup, group.length);
+            for (let i = 0; i < count; i++) {
+                const idx = Math.round((i / (count - 1)) * (group.length - 1));
+                const step = group[idx];
+                if (stepSequence.length === 0 || stepSequence[stepSequence.length - 1] !== step) {
+                    stepSequence.push(step);
+                }
+            }
+        }
+    }
+
+    return stepSequence;
+}
+
+function _getNextAnimStep(currentStep) {
+    const allSteps = getAllAnimationSteps();
+    const totalSteps = allSteps.length || 1080;
+
+    if (animSpeedMultiplier <= 1) {
+        return Math.min(activeRangeEnd, currentStep + 1);
+    }
+
+    if (!cachedStepSequence || cachedSequenceSpeed !== animSpeedMultiplier) {
+        cachedStepSequence = generateIntermediateAnimationSteps(totalSteps, animSpeedMultiplier);
+        cachedSequenceSpeed = animSpeedMultiplier;
+    }
+    
+    const sequence = cachedStepSequence;
+
+    // Find next step in generated intermediate sequence that is strictly > currentStep
+    for (let i = 0; i < sequence.length; i++) {
+        if (sequence[i] > currentStep && sequence[i] <= activeRangeEnd) {
+            return sequence[i];
+        }
+    }
+
+    return Math.min(activeRangeEnd, currentStep + 1);
+}
+
 function playStepAnimation() {
     if (isAnimPlaying) return;
     const allSteps = getAllAnimationSteps();
@@ -667,8 +861,9 @@ function playStepAnimation() {
         if (currentAnimStep >= activeRangeEnd) {
             pauseStepAnimation();
         } else {
-            currentAnimStep++;
-            animTimer = setTimeout(tick, animSpeedMs);
+            currentAnimStep = _getNextAnimStep(currentAnimStep);
+            const delay = animSpeedMultiplier < 1 ? 80 : 16;
+            animTimer = setTimeout(tick, delay);
         }
     };
 
@@ -725,9 +920,14 @@ function jumpToStep(stepNum) {
     _syncAnimUI(info);
 }
 
+let cachedStepSequence = null;
+let cachedSequenceSpeed = null;
+
 function setAnimationSpeed(speedMultiplier) {
-    const mult = parseFloat(speedMultiplier) || 1;
+    const mult = Math.min(3, Math.max(0.5, parseFloat(speedMultiplier) || 3));
+    animSpeedMultiplier = mult;
     animSpeedMs = Math.max(5, Math.round(40 / mult));
+    cachedStepSequence = null; // Clear cached sequence on speed change
 }
 
 // ── 2D Column Cross-Section Plotting ──────────────────────────────────────────

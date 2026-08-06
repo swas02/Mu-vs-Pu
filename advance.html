@@ -97,9 +97,9 @@
 
         <!-- Step Phase & Animation Controller Card -->
         <div class="sidebar-card">
-            <div class="card-mini-header">
+            <div class="card-mini-header" style="flex-direction:column; align-items:flex-start; gap:0.25rem;">
                 <span class="card-mini-title">Animation Mode</span>
-                <span id="animStepBadge" class="tag-chip">Step 1 / 1080</span>
+                <span id="animStepBadge" class="tag-chip" style="margin-top:0.1rem;">Step 1 / 1080</span>
             </div>
 
             <!-- Radio Button Mode Selection (3 Radio Buttons) -->
@@ -150,11 +150,11 @@
             <!-- Speed Control -->
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
                 <label class="select-label" style="margin:0;">Speed:</label>
-                <select class="clean-select" style="width:100px; padding:0.25rem 0.5rem;" onchange="setAnimationSpeed(this.value)">
+                <select class="clean-select" style="width:130px; padding:0.25rem 0.5rem;" onchange="setAnimationSpeed(this.value)">
                     <option value="0.5">0.5x Slow</option>
-                    <option value="1" selected>1x Normal</option>
-                    <option value="2">2x Fast</option>
-                    <option value="5">5x Rapid</option>
+                    <option value="1">1x Normal</option>
+                    <option value="2">2x Rapid</option>
+                    <option value="3" selected>3x Fast (Default)</option>
                 </select>
             </div>
 
@@ -169,29 +169,34 @@
         <div class="sidebar-card">
             <div class="card-mini-header">
                 <span class="card-mini-title">Demand Load Inspection</span>
-                <span id="dcStatusBadge" class="tag-chip" style="background:#10b98122; color:#10b981; border:1px solid #10b98144;">D/C: 0.00</span>
+                <span id="dcStatusBadge" class="tag-chip" style="background:var(--bg-tertiary); color:var(--text-secondary); border:1px solid var(--border-color);">D/C: —</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:0.4rem; margin-top:0.4rem;">
                 <div style="display:flex; gap:0.35rem;">
                     <div style="flex:1;">
                         <label class="select-label">P<sub>u</sub> (kN):</label>
-                        <input type="number" id="demandPuInput" value="500" class="clean-select" style="width:100%; padding:0.25rem 0.4rem;" oninput="onDemandInputChange()">
+                        <input type="number" id="demandPuInput" placeholder="e.g. 500" class="clean-select" style="width:100%; padding:0.25rem 0.4rem;" oninput="onDemandInputChange()">
                     </div>
                     <div style="flex:1;">
                         <label class="select-label">M<sub>ux</sub> (kNm):</label>
-                        <input type="number" id="demandMuxInput" value="100" class="clean-select" style="width:100%; padding:0.25rem 0.4rem;" oninput="onDemandInputChange()">
+                        <input type="number" id="demandMuxInput" placeholder="e.g. 100" class="clean-select" style="width:100%; padding:0.25rem 0.4rem;" oninput="onDemandInputChange()">
                     </div>
                     <div style="flex:1;">
                         <label class="select-label">M<sub>uy</sub> (kNm):</label>
-                        <input type="number" id="demandMuyInput" value="50" class="clean-select" style="width:100%; padding:0.25rem 0.4rem;" oninput="onDemandInputChange()">
+                        <input type="number" id="demandMuyInput" placeholder="e.g. 50" class="clean-select" style="width:100%; padding:0.25rem 0.4rem;" oninput="onDemandInputChange()">
                     </div>
                 </div>
 
                 <div class="phase-badge-box" style="margin-top:0.3rem;">
-                    <div class="phase-row"><span class="phase-label">Demand M<sub>u</sub>:</span><span class="phase-val" id="demandMuVal">111.8 kNm</span></div>
+                    <div class="phase-row"><span class="phase-label">Demand M<sub>u</sub>:</span><span class="phase-val" id="demandMuVal">—</span></div>
                     <div class="phase-row"><span class="phase-label">Capacity M<sub>u</sub>:</span><span class="phase-val" id="capacityMuVal">—</span></div>
-                    <div class="phase-row"><span class="phase-label">D/C Ratio:</span><span class="phase-val" id="dcRatioVal" style="font-weight:700; color:#10b981;">0.00 (PASS)</span></div>
+                    <div class="phase-row"><span class="phase-label">D/C Ratio:</span><span class="phase-val" id="dcRatioVal" style="font-weight:700; color:var(--text-secondary);">—</span></div>
                 </div>
+
+                <button class="btn btn-secondary" onclick="clearDemandInputs()" style="width:100%; margin-top:0.35rem; padding:0.25rem 0.5rem; font-size:0.78rem; display:flex; align-items:center; justify-content:center; gap:0.3rem;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    Clear Demand Loads
+                </button>
             </div>
         </div>
 
@@ -223,7 +228,7 @@
     <div class="hud-header">
         <div class="hud-title-wrap">
             <div class="hud-badge">Biaxial Interaction Inspector</div>
-            <h2 class="hud-main-title">3D Capacity Surface & Step Inspector</h2>
+            <h2 class="hud-main-title">3D Column Biaxial Inspector</h2>
         </div>
         <div class="hud-metrics">
             <div class="hud-card">
@@ -311,7 +316,7 @@ const _origApply = applySection;
 applySection = function(data) {
     _origApply(data);
     updateMetaLabels();
-    runPlotSteps(1, 40);
+    runPlotSteps(1, 1);
 };
 
 function updateMetaLabels() {
@@ -332,19 +337,47 @@ function initThetaDropdown() {
     const sel = document.getElementById('thetaAngleSelect');
     if (!sel) return;
     sel.innerHTML = '';
-    for (let a = 0; a < 36; a++) {
+    for (let a = 0; a <= 36; a++) {
         const deg = a * 10;
         const opt = document.createElement('option');
         opt.value = deg;
-        opt.textContent = `${deg}° ${deg === 0 ? '(+Mx)' : deg === 90 ? '(+My)' : deg === 180 ? '(-Mx)' : deg === 270 ? '(-My)' : ''}`;
+        opt.textContent = `${deg}° ${deg === 0 || deg === 360 ? '(+Mx)' : deg === 90 ? '(+My)' : deg === 180 ? '(-Mx)' : deg === 270 ? '(-My)' : ''}`;
         sel.appendChild(opt);
     }
 }
 
 function onDemandInputChange() {
-    const puD = parseFloat(document.getElementById('demandPuInput').value) || 0;
-    const muxD = parseFloat(document.getElementById('demandMuxInput').value) || 0;
-    const muyD = parseFloat(document.getElementById('demandMuyInput').value) || 0;
+    const rawPu = document.getElementById('demandPuInput').value.trim();
+    const rawMux = document.getElementById('demandMuxInput').value.trim();
+    const rawMuy = document.getElementById('demandMuyInput').value.trim();
+
+    const dcEl = document.getElementById('dcRatioVal');
+    const badgeEl = document.getElementById('dcStatusBadge');
+
+    if (rawPu === '' && rawMux === '' && rawMuy === '') {
+        activeDemandPoint = null;
+        document.getElementById('demandMuVal').textContent = '—';
+        document.getElementById('capacityMuVal').textContent = '—';
+        dcEl.textContent = '—';
+        dcEl.style.color = 'var(--text-secondary)';
+        badgeEl.textContent = 'D/C: —';
+        badgeEl.style.background = 'var(--bg-tertiary)';
+        badgeEl.style.color = 'var(--text-secondary)';
+        badgeEl.style.borderColor = 'var(--border-color)';
+
+        const modeEl = document.querySelector('input[name="plotterMode"]:checked');
+        const mode = modeEl ? modeEl.value : 'full';
+        if (mode === 'mesh') {
+            if (typeof plot3DMeshSurface === 'function') plot3DMeshSurface();
+        } else {
+            if (typeof plot3DSteps === 'function') plot3DSteps(activeRangeStart, currentAnimStep);
+        }
+        return;
+    }
+
+    const puD = parseFloat(rawPu) || 0;
+    const muxD = parseFloat(rawMux) || 0;
+    const muyD = parseFloat(rawMuy) || 0;
 
     if (typeof checkDemandLoadPoint !== 'function') return;
     const res = checkDemandLoadPoint(puD, muxD, muyD);
@@ -352,9 +385,6 @@ function onDemandInputChange() {
 
     document.getElementById('demandMuVal').textContent = `${res.muD.toFixed(1)} kNm`;
     document.getElementById('capacityMuVal').textContent = `${res.muCap.toFixed(1)} kNm`;
-
-    const dcEl = document.getElementById('dcRatioVal');
-    const badgeEl = document.getElementById('dcStatusBadge');
 
     if (res.isSafe) {
         dcEl.textContent = `${res.dcRatio.toFixed(2)} (PASS)`;
@@ -371,6 +401,22 @@ function onDemandInputChange() {
         badgeEl.style.color = '#ef4444';
         badgeEl.style.borderColor = '#ef444444';
     }
+
+    // Refresh 3D plot to render the live Demand Point marker
+    const modeEl = document.querySelector('input[name="plotterMode"]:checked');
+    const mode = modeEl ? modeEl.value : 'full';
+    if (mode === 'mesh') {
+        if (typeof plot3DMeshSurface === 'function') plot3DMeshSurface();
+    } else {
+        if (typeof plot3DSteps === 'function') plot3DSteps(activeRangeStart, currentAnimStep);
+    }
+}
+
+function clearDemandInputs() {
+    document.getElementById('demandPuInput').value = '';
+    document.getElementById('demandMuxInput').value = '';
+    document.getElementById('demandMuyInput').value = '';
+    onDemandInputChange();
 }
 
 function onPlotterModeChange() {
@@ -396,9 +442,11 @@ function onPlotterModeChange() {
             wrap.style.opacity = '0.5';
             wrap.style.pointerEvents = 'none';
         }
-        if (typeof setAnimationRange === 'function') setAnimationRange(1, 1080);
+        const all = typeof getAllAnimationSteps === 'function' ? getAllAnimationSteps() : [];
+        const total = all.length || 1080;
+        if (typeof setAnimationRange === 'function') setAnimationRange(1, total);
         currentAnimStep = 1;
-        runPlotSteps(1, null);
+        runPlotSteps(1, 1);
     }
 }
 function onAngleSpectrumSliderInput(degStr) {
@@ -428,7 +476,7 @@ function onThetaAngleSelectChange() {
     const angleDeg = parseInt(sel.value) || 0;
     const allSteps = getAllAnimationSteps();
     const stepsPerAngle = Math.round(allSteps.length / 36) || 30;
-    const aIdx = angleDeg / 10;
+    const aIdx = (angleDeg % 360) / 10;
     const startStep = aIdx * stepsPerAngle + 1;
     const endStep = (aIdx + 1) * stepsPerAngle;
     
