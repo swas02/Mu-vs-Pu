@@ -397,6 +397,10 @@ function updateAll() {
         diagramsStale = true;
     }
     updateDiagramStatusUI();
+
+    if (typeof cacheSectionToLocalStorage === "function") {
+        cacheSectionToLocalStorage();
+    }
 }
 
 let debounceTimer;
@@ -407,5 +411,9 @@ function debouncedUpdate() {
 
 // Initial setup on window load
 window.onload = function() {
-    updateAll();
+    if (typeof loadCachedSectionFromLocalStorage === "function") {
+        loadCachedSectionFromLocalStorage();
+    } else {
+        updateAll();
+    }
 };

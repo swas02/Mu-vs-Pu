@@ -98,11 +98,34 @@
         <!-- Step Phase & Animation Controller Card -->
         <div class="sidebar-card">
             <div class="card-mini-header">
-                <span class="card-mini-title">Step Animation Engine</span>
-                <span id="animStepBadge" class="tag-chip">Step 1 / 1080 (0.1%)</span>
+                <span class="card-mini-title">Animation Mode</span>
+                <span id="animStepBadge" class="tag-chip">Step 1 / 1080</span>
             </div>
 
-            <!-- Animation Controls Row -->
+            <!-- Radio Button Mode Selection (3 Radio Buttons) -->
+            <div class="radio-mode-group" style="display:flex; flex-direction:column; gap:0.55rem; margin:0.6rem 0 0.8rem 0; background:var(--bg-tertiary); padding:0.65rem 0.75rem; border-radius:0.5rem; border:1px solid var(--border-color);">
+                <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.82rem; font-weight:600; cursor:pointer;">
+                    <input type="radio" name="plotterMode" value="full" checked onchange="onPlotterModeChange()">
+                    Animate Full Envelope
+                </label>
+
+                <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.82rem; font-weight:600; cursor:pointer;">
+                    <input type="radio" name="plotterMode" value="angle" onchange="onPlotterModeChange()">
+                    Show for Angle (θ)
+                </label>
+
+                <div id="thetaSelectWrap" style="margin-left:1.55rem; opacity:0.5; pointer-events:none; transition:opacity 0.2s ease;">
+                    <select id="thetaAngleSelect" class="clean-select" style="width:100%; padding:0.3rem 0.5rem;" onchange="onThetaAngleSelectChange()">
+                    </select>
+                </div>
+
+                <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.82rem; font-weight:600; cursor:pointer;">
+                    <input type="radio" name="plotterMode" value="mesh" onchange="onPlotterModeChange()">
+                    Show 3D Mesh Surface
+                </label>
+            </div>
+
+            <!-- Animation Playback Controls -->
             <div style="display:flex; gap:0.35rem; margin-bottom:0.6rem;">
                 <button id="animPlayPauseBtn" class="btn btn-primary" onclick="togglePlayPauseAnimation()" style="flex:1;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Play
@@ -135,28 +158,40 @@
                 </select>
             </div>
 
-            <div class="step-input-row" style="border-top:1px solid var(--border-color); padding-top:0.6rem; margin-bottom:0.4rem;">
-                <div>
-                    <label class="select-label">Start Step:</label>
-                    <input type="number" id="startStepInput" value="1" min="1" onchange="onStepInputChange()">
-                </div>
-                <div>
-                    <label class="select-label">End Step:</label>
-                    <input type="number" id="endStepInput" value="40" min="1" onchange="onStepInputChange()">
-                </div>
-            </div>
-
-            <div class="preset-btn-grid">
-                <button class="btn btn-secondary" onclick="runPlotSteps(1, 1)">Step 1</button>
-                <button class="btn btn-secondary" onclick="runPlotSteps(1, 40)">Steps 1–40</button>
-                <button class="btn btn-secondary" onclick="runPlotSteps(40, 60)">Steps 40–60</button>
-                <button class="btn btn-secondary" onclick="runPlotSteps(1, null)">All Steps</button>
-            </div>
-
             <div class="phase-badge-box">
                 <div class="phase-row"><span class="phase-label">Phase:</span><span class="phase-val" id="phaseNameVal">—</span></div>
                 <div class="phase-row"><span class="phase-label">Angles:</span><span class="phase-val" id="phaseAngleVal">—</span></div>
                 <div class="phase-row"><span class="phase-label">Progress:</span><span class="phase-val" id="phaseProgressVal">—</span></div>
+            </div>
+        </div>
+
+        <!-- Industry Demand Load Inspection Card (ETABS / spColumn Style) -->
+        <div class="sidebar-card">
+            <div class="card-mini-header">
+                <span class="card-mini-title">Demand Load Inspection</span>
+                <span id="dcStatusBadge" class="tag-chip" style="background:#10b98122; color:#10b981; border:1px solid #10b98144;">D/C: 0.00</span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:0.4rem; margin-top:0.4rem;">
+                <div style="display:flex; gap:0.35rem;">
+                    <div style="flex:1;">
+                        <label class="select-label">P<sub>u</sub> (kN):</label>
+                        <input type="number" id="demandPuInput" value="500" class="clean-select" style="width:100%; padding:0.25rem 0.4rem;" oninput="onDemandInputChange()">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="select-label">M<sub>ux</sub> (kNm):</label>
+                        <input type="number" id="demandMuxInput" value="100" class="clean-select" style="width:100%; padding:0.25rem 0.4rem;" oninput="onDemandInputChange()">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="select-label">M<sub>uy</sub> (kNm):</label>
+                        <input type="number" id="demandMuyInput" value="50" class="clean-select" style="width:100%; padding:0.25rem 0.4rem;" oninput="onDemandInputChange()">
+                    </div>
+                </div>
+
+                <div class="phase-badge-box" style="margin-top:0.3rem;">
+                    <div class="phase-row"><span class="phase-label">Demand M<sub>u</sub>:</span><span class="phase-val" id="demandMuVal">111.8 kNm</span></div>
+                    <div class="phase-row"><span class="phase-label">Capacity M<sub>u</sub>:</span><span class="phase-val" id="capacityMuVal">—</span></div>
+                    <div class="phase-row"><span class="phase-label">D/C Ratio:</span><span class="phase-val" id="dcRatioVal" style="font-weight:700; color:#10b981;">0.00 (PASS)</span></div>
+                </div>
             </div>
         </div>
 
@@ -200,6 +235,10 @@
                 <span class="hud-val" id="hudXu">—</span>
             </div>
             <div class="hud-card">
+                <span class="hud-label">X<sub>u</sub> / d Ratio</span>
+                <span class="hud-val" id="hudXud">—</span>
+            </div>
+            <div class="hud-card">
                 <span class="hud-label">Axial Load (P<sub>u</sub>)</span>
                 <span class="hud-val" id="hudPu">—</span>
             </div>
@@ -210,24 +249,27 @@
         </div>
     </div>
 
-    <!-- Surface Color Scale & Angle Legend -->
-    <div class="color-legend-bar">
-        <span class="legend-title">Bending Angle Spectrum (θ):</span>
-        <div class="color-spectrum">
-            <div class="spectrum-gradient"></div>
-            <div class="spectrum-labels">
-                <span style="color:#ef4444;">0° (+M<sub>x</sub>)</span>
-                <span style="color:#eab308;">45°</span>
-                <span style="color:#10b981;">90° (+M<sub>y</sub>)</span>
-                <span style="color:#06b6d4;">180° (-M<sub>x</sub>)</span>
-                <span style="color:#8b5cf6;">270° (-M<sub>y</sub>)</span>
-                <span style="color:#ef4444;">360°</span>
-            </div>
+    <!-- Surface Color Scale & Interactive Angle Slider -->
+    <div class="color-legend-bar" style="display:flex; flex-direction:column; gap:0.4rem; padding:0.6rem 1rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span class="legend-title">Bending Angle Spectrum (θ): <strong id="angleSpectrumVal" style="color:var(--accent-color); font-size:0.95rem;">0.0°</strong></span>
+            <span class="tag-chip" id="angleSpectrumChip">36 Bending Angles (0°–350°)</span>
+        </div>
+        
+        <input type="range" id="angleSpectrumSlider" min="0" max="350" step="10" value="0" disabled style="width:100%; height:8px; border-radius:4px; appearance:none; -webkit-appearance:none; background:linear-gradient(to right, #ef4444 0%, #eab308 12.5%, #10b981 25%, #06b6d4 50%, #8b5cf6 75%, #ef4444 100%); pointer-events:none; opacity:0.9;">
+
+        <div class="spectrum-labels" style="position:relative; width:100%; height:1.2rem; margin-top:0.25rem; font-size:0.75rem; font-weight:600;">
+            <span style="position:absolute; left:0%; transform:translateX(0%); color:#ef4444;">0° (+M<sub>x</sub>)</span>
+            <span style="position:absolute; left:12.8%; transform:translateX(-50%); color:#eab308;">45°</span>
+            <span style="position:absolute; left:25.7%; transform:translateX(-50%); color:#10b981;">90° (+M<sub>y</sub>)</span>
+            <span style="position:absolute; left:51.4%; transform:translateX(-50%); color:#06b6d4;">180° (-M<sub>x</sub>)</span>
+            <span style="position:absolute; left:77.1%; transform:translateX(-50%); color:#8b5cf6;">270° (-M<sub>y</sub>)</span>
+            <span style="position:absolute; right:0%; color:#ef4444;">350°</span>
         </div>
     </div>
 
     <div style="flex:1; padding:0.75rem 1rem; overflow:hidden; display:flex; flex-direction:column; gap:0.75rem;">
-        <!-- Plots Row -->
+        <!-- Plots Row (Full Height) -->
         <div style="flex:1; display:flex; gap:0.85rem; min-height:0; width:100%;">
             <!-- 3D Surface Viewport -->
             <div class="viewport-box" style="flex:1.3;">
@@ -251,17 +293,6 @@
                 </div>
                 <div id="plotlyPlot2D" style="flex:1; width:100%; height:100%; min-height:0;"></div>
             </div>
-        </div>
-
-        <!-- JSON Dataset Viewer Row -->
-        <div style="height:180px; display:flex; flex-direction:column; min-height:0;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
-                <span class="legend-title">Selected Step Range JSON Output:</span>
-                <button class="btn btn-secondary" onclick="copyJSONToClipboard()" style="padding:0.2rem 0.6rem; font-size:0.75rem; width:auto;">
-                    📋 Copy JSON
-                </button>
-            </div>
-            <pre class="json-box" id="jsonOutput">Generating step JSON...</pre>
         </div>
     </div>
 </div>
@@ -297,6 +328,116 @@ function updateMetaLabels() {
     document.getElementById('metaPt').textContent  = `${(Asc/Ag*100).toFixed(2)} %`;
 }
 
+function initThetaDropdown() {
+    const sel = document.getElementById('thetaAngleSelect');
+    if (!sel) return;
+    sel.innerHTML = '';
+    for (let a = 0; a < 36; a++) {
+        const deg = a * 10;
+        const opt = document.createElement('option');
+        opt.value = deg;
+        opt.textContent = `${deg}° ${deg === 0 ? '(+Mx)' : deg === 90 ? '(+My)' : deg === 180 ? '(-Mx)' : deg === 270 ? '(-My)' : ''}`;
+        sel.appendChild(opt);
+    }
+}
+
+function onDemandInputChange() {
+    const puD = parseFloat(document.getElementById('demandPuInput').value) || 0;
+    const muxD = parseFloat(document.getElementById('demandMuxInput').value) || 0;
+    const muyD = parseFloat(document.getElementById('demandMuyInput').value) || 0;
+
+    if (typeof checkDemandLoadPoint !== 'function') return;
+    const res = checkDemandLoadPoint(puD, muxD, muyD);
+    if (!res) return;
+
+    document.getElementById('demandMuVal').textContent = `${res.muD.toFixed(1)} kNm`;
+    document.getElementById('capacityMuVal').textContent = `${res.muCap.toFixed(1)} kNm`;
+
+    const dcEl = document.getElementById('dcRatioVal');
+    const badgeEl = document.getElementById('dcStatusBadge');
+
+    if (res.isSafe) {
+        dcEl.textContent = `${res.dcRatio.toFixed(2)} (PASS)`;
+        dcEl.style.color = '#10b981';
+        badgeEl.textContent = `D/C: ${res.dcRatio.toFixed(2)} PASS`;
+        badgeEl.style.background = '#10b98122';
+        badgeEl.style.color = '#10b981';
+        badgeEl.style.borderColor = '#10b98144';
+    } else {
+        dcEl.textContent = `${res.dcRatio.toFixed(2)} (FAIL)`;
+        dcEl.style.color = '#ef4444';
+        badgeEl.textContent = `D/C: ${res.dcRatio.toFixed(2)} FAIL`;
+        badgeEl.style.background = '#ef444422';
+        badgeEl.style.color = '#ef4444';
+        badgeEl.style.borderColor = '#ef444444';
+    }
+}
+
+function onPlotterModeChange() {
+    const modeEl = document.querySelector('input[name="plotterMode"]:checked');
+    if (!modeEl) return;
+    const mode = modeEl.value;
+    const wrap = document.getElementById('thetaSelectWrap');
+    if (mode === 'angle') {
+        if (wrap) {
+            wrap.style.opacity = '1';
+            wrap.style.pointerEvents = 'auto';
+        }
+        onThetaAngleSelectChange();
+    } else if (mode === 'mesh') {
+        if (wrap) {
+            wrap.style.opacity = '0.5';
+            wrap.style.pointerEvents = 'none';
+        }
+        if (typeof pauseStepAnimation === 'function') pauseStepAnimation();
+        if (typeof plot3DMeshSurface === 'function') plot3DMeshSurface();
+    } else {
+        if (wrap) {
+            wrap.style.opacity = '0.5';
+            wrap.style.pointerEvents = 'none';
+        }
+        if (typeof setAnimationRange === 'function') setAnimationRange(1, 1080);
+        currentAnimStep = 1;
+        runPlotSteps(1, null);
+    }
+}
+function onAngleSpectrumSliderInput(degStr) {
+    const angleDeg = parseInt(degStr) || 0;
+    const valLabel = document.getElementById('angleSpectrumVal');
+    if (valLabel) valLabel.textContent = `${angleDeg.toFixed(1)}°`;
+
+    const radioAngle = document.querySelector('input[name="plotterMode"][value="angle"]');
+    if (radioAngle && !radioAngle.checked) {
+        radioAngle.checked = true;
+        const wrap = document.getElementById('thetaSelectWrap');
+        if (wrap) {
+            wrap.style.opacity = '1';
+            wrap.style.pointerEvents = 'auto';
+        }
+    }
+    const sel = document.getElementById('thetaAngleSelect');
+    if (sel) {
+        sel.value = angleDeg;
+        onThetaAngleSelectChange();
+    }
+}
+
+function onThetaAngleSelectChange() {
+    const sel = document.getElementById('thetaAngleSelect');
+    if (!sel) return;
+    const angleDeg = parseInt(sel.value) || 0;
+    const allSteps = getAllAnimationSteps();
+    const stepsPerAngle = Math.round(allSteps.length / 36) || 30;
+    const aIdx = angleDeg / 10;
+    const startStep = aIdx * stepsPerAngle + 1;
+    const endStep = (aIdx + 1) * stepsPerAngle;
+    
+    if (typeof pauseStepAnimation === 'function') pauseStepAnimation();
+    if (typeof setAnimationRange === 'function') setAnimationRange(startStep, endStep);
+    currentAnimStep = startStep;
+    runPlotSteps(startStep, startStep);
+}
+
 function runPlotSteps(startStep, endStep) {
     if (typeof plot3DSteps !== 'function') return;
 
@@ -305,29 +446,18 @@ function runPlotSteps(startStep, endStep) {
         endStep = all.length;
     }
 
-    document.getElementById('startStepInput').value = startStep;
-    document.getElementById('endStepInput').value = endStep;
-
     currentPhaseInfo = plot3DSteps(startStep, endStep);
 
     if (currentPhaseInfo && !currentPhaseInfo.error) {
         document.getElementById('phaseNameVal').textContent = currentPhaseInfo.phaseName;
         document.getElementById('phaseAngleVal').textContent = `${currentPhaseInfo.startAngleDeg}° – ${currentPhaseInfo.endAngleDeg}°`;
         document.getElementById('phaseProgressVal').textContent = `${currentPhaseInfo.progressPct}% (${currentPhaseInfo.count} steps)`;
-
-        const jsonStr = JSON.stringify(currentPhaseInfo, null, 2);
-        document.getElementById('jsonOutput').textContent = jsonStr;
     }
 }
 
-function onStepInputChange() {
-    const s = parseInt(document.getElementById('startStepInput').value) || 1;
-    const e = parseInt(document.getElementById('endStepInput').value) || s;
-    runPlotSteps(s, e);
-}
-
 function copyJSONToClipboard() {
-    const text = document.getElementById('jsonOutput').textContent;
+    if (!currentPhaseInfo) return;
+    const text = JSON.stringify(currentPhaseInfo, null, 2);
     navigator.clipboard.writeText(text).then(() => {
         alert('JSON copied to clipboard!');
     });
@@ -347,8 +477,13 @@ function toggleTheme() {
 }
 
 window.onload = function() {
+    if (typeof loadCachedSectionFromLocalStorage === 'function') {
+        loadCachedSectionFromLocalStorage();
+    }
     updateMetaLabels();
-    runPlotSteps(1, 40);
+    initThetaDropdown();
+    onDemandInputChange();
+    onPlotterModeChange();
 };
 </script>
 </body>

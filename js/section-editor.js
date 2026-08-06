@@ -132,7 +132,8 @@ function loadSection(event) {
 // Any previously generated diagram is invalidated - the user re-generates it explicitly.
 function applySection(data) {
     sectionType = data.sectionType;
-    document.getElementById("shapeType").value = sectionType;
+    const shapeEl = document.getElementById("shapeType");
+    if (shapeEl) shapeEl.value = sectionType;
 
     // Prefer the shape-native fields (b/d, radius); fall back to maxX/maxY for files
     // saved before this rename.
@@ -147,29 +148,34 @@ function applySection(data) {
     fy = ["Fe250", "Fe415", "Fe500", "Fe550"].includes(data.fy) ? data.fy : "Fe415";
     const cover = parseInt(data.cover) || 40;
 
-    document.getElementById("maxX").value = maxX;
-    document.getElementById("maxY").value = maxY;
-    document.getElementById("fck").value = fck;
-    document.getElementById("fy").value = fy;
-    document.getElementById("cover").value = cover;
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+    setVal("maxX", maxX);
+    setVal("maxY", maxY);
+    setVal("fck", fck);
+    setVal("fy", fy);
+    setVal("cover", cover);
 
-    if (data.dia) document.getElementById("dia").value = parseInt(data.dia) || 16;
+    if (data.dia) setVal("dia", parseInt(data.dia) || 16);
     if (data.color) {
-        document.getElementById("color").value = data.color;
-        document.getElementById("colorHex").textContent = String(data.color).toUpperCase();
+        setVal("color", data.color);
+        const hexEl = document.getElementById("colorHex");
+        if (hexEl) hexEl.textContent = String(data.color).toUpperCase();
     }
-    document.getElementById("enableSnapping").checked = data.enableSnapping !== false;
-    if (data.numX) document.getElementById("numX").value = data.numX;
-    if (data.numY) document.getElementById("numY").value = data.numY;
-    if (data.numCirc) document.getElementById("numCirc").value = data.numCirc;
+    const snapEl = document.getElementById("enableSnapping");
+    if (snapEl) snapEl.checked = data.enableSnapping !== false;
+    if (data.numX) setVal("numX", data.numX);
+    if (data.numY) setVal("numY", data.numY);
+    if (data.numCirc) setVal("numCirc", data.numCirc);
 
     const reinforcementLocations = data.reinforcementLocations || data.circles; // "circles" supported for files saved before the rename
-    circles = reinforcementLocations.map(c => ({
-        dia: parseInt(c.dia) || 16,
-        x: parseFloat(c.x) || 0,
-        y: parseFloat(c.y) || 0,
-        color: typeof c.color === "string" ? c.color : "#3b82f6"
-    }));
+    if (Array.isArray(reinforcementLocations)) {
+        circles = reinforcementLocations.map(c => ({
+            dia: parseInt(c.dia) || 16,
+            x: parseFloat(c.x) || 0,
+            y: parseFloat(c.y) || 0,
+            color: typeof c.color === "string" ? c.color : "#3b82f6"
+        }));
+    }
     selectedBarIndex = null;
 
     profiles[sectionType] = { circles: [...circles], maxX, maxY, fck: String(fck), fy, cover };
@@ -179,20 +185,82 @@ function applySection(data) {
     const rectPattern = document.getElementById("rectPatternContainer");
     const circPattern = document.getElementById("circPatternContainer");
 
-    if (sectionType === "circular") {
-        widthContainer.style.display = "none";
-        depthLabel.textContent = "Diameter (D, mm)";
-        rectPattern.style.display = "none";
-        circPattern.style.display = "block";
-    } else {
-        widthContainer.style.display = "block";
-        depthLabel.textContent = "Depth (D, mm)";
-        rectPattern.style.display = "grid";
-        circPattern.style.display = "none";
+    if (widthContainer && depthLabel && rectPattern && circPattern) {
+        if (sectionType === "circular") {
+            widthContainer.style.display = "none";
+            depthLabel.textContent = "Diameter (D, mm)";
+            rectPattern.style.display = "none";
+            circPattern.style.display = "block";
+        } else {
+            widthContainer.style.display = "block";
+            depthLabel.textContent = "Depth (D, mm)";
+            rectPattern.style.display = "grid";
+            circPattern.style.display = "none";
+        }
     }
 
     purgeDiagramState();
     updateAll();
+    cacheSectionToLocalStorage();
+}
+
+// Serialize current section state for localStorage caching
+function getCurrentSectionData() {
+    const fckVal = document.getElementById("fck") ? document.getElementById("fck").value : String(fck);
+    const fyVal = document.getElementById("fy") ? document.getElementById("fy").value : fy;
+    const coverVal = document.getElementById("cover") ? parseInt(document.getElementById("cover").value) || 40 : 40;
+    const diaVal = document.getElementById("dia") ? parseInt(document.getElementById("dia").value) || 16 : 16;
+    const colorVal = document.getElementById("color") ? document.getElementById("color").value : "#3b82f6";
+    const snappingVal = document.getElementById("enableSnapping") ? document.getElementById("enableSnapping").checked : true;
+
+    const sectionData = {
+        version: 1,
+        sectionType: sectionType,
+        fck: fckVal,
+        fy: fyVal,
+        cover: coverVal,
+        dia: diaVal,
+        color: colorVal,
+        enableSnapping: snappingVal,
+        reinforcementLocations: circles.map(c => ({ dia: c.dia, x: c.x, y: c.y, color: c.color }))
+    };
+
+    if (sectionType === "circular") {
+        sectionData.radius = maxY / 2;
+        sectionData.maxY = maxY;
+        sectionData.maxX = maxY;
+    } else {
+        sectionData.b = maxX;
+        sectionData.d = maxY;
+        sectionData.maxX = maxX;
+        sectionData.maxY = maxY;
+    }
+
+    return sectionData;
+}
+
+function cacheSectionToLocalStorage() {
+    try {
+        const data = getCurrentSectionData();
+        localStorage.setItem("mu_vs_pu_cached_section", JSON.stringify(data));
+    } catch (e) {
+        console.warn("Could not save section to localStorage cache", e);
+    }
+}
+
+function loadCachedSectionFromLocalStorage() {
+    try {
+        const raw = localStorage.getItem("mu_vs_pu_cached_section");
+        if (!raw) return false;
+        const data = JSON.parse(raw);
+        if (data && (data.sectionType === "rectangular" || data.sectionType === "circular") && Array.isArray(data.reinforcementLocations || data.circles)) {
+            applySection(data);
+            return true;
+        }
+    } catch (e) {
+        console.warn("Could not load cached section from localStorage", e);
+    }
+    return false;
 }
 
 // Listen for hex color value change to show on screen

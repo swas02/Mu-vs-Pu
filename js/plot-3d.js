@@ -223,11 +223,59 @@ function getAllAnimationSteps() {
     const negativeXuSteps = steps.filter(s => s.Xu < 0);
     if (negativeXuSteps.length > 0) {
         console.warn(negativeXuSteps.length, negativeXuSteps);
-    } else {
-        console.log(0);
     }
 
     return steps;
+}
+
+/**
+ * Evaluates a design demand load point (Pu, Mux, Muy) against the 3D capacity surface.
+ * Computes resultant moment Mu,D, capacity moment Mu,cap, and D/C capacity ratio.
+ */
+function checkDemandLoadPoint(puD, muxD, muyD) {
+    const allSteps = getAllAnimationSteps();
+    if (allSteps.length === 0) return null;
+
+    const muD = Math.sqrt(muxD * muxD + muyD * muyD);
+    let thetaRadD = Math.atan2(muyD, muxD);
+    if (thetaRadD < 0) thetaRadD += 2 * Math.PI;
+    const thetaDegD = thetaRadD * 180 / Math.PI;
+
+    const angles = [];
+    for (let a = 0; a < 36; a++) angles.push(a * 10);
+    const closestAngle = angles.reduce((prev, curr) => Math.abs(curr - thetaDegD) < Math.abs(prev - thetaDegD) ? curr : prev);
+
+    const angleSteps = allSteps.filter(s => Math.abs(s.thetaDeg - closestAngle) < 1.0);
+    if (angleSteps.length === 0) return null;
+
+    let closestStep = angleSteps[0];
+    let minDiff = Math.abs(closestStep.Pu - puD);
+    for (let i = 1; i < angleSteps.length; i++) {
+        const diff = Math.abs(angleSteps[i].Pu - puD);
+        if (diff < minDiff) {
+            minDiff = diff;
+            closestStep = angleSteps[i];
+        }
+    }
+
+    const muCap = closestStep.Mu || 1;
+    const dcRatio = muCap > 0 ? (muD / muCap) : 999;
+    const isSafe = dcRatio <= 1.0;
+
+    return {
+        puD, muxD, muyD, muD, thetaDegD, closestAngle,
+        muCap, dcRatio, isSafe
+    };
+}
+
+let activeRangeStart = 1;
+let activeRangeEnd = 1080;
+
+function setAnimationRange(minStep, maxStep) {
+    const allSteps = getAllAnimationSteps();
+    const total = allSteps.length || 1080;
+    activeRangeStart = Math.max(1, Math.min(total, minStep || 1));
+    activeRangeEnd = Math.max(activeRangeStart, Math.min(total, maxStep || total));
 }
 
 /**
@@ -262,12 +310,12 @@ function plot3DSteps(startStep, endStep) {
 
     const activeAngle = rangeSteps[rangeSteps.length - 1].thetaDeg;
 
-    // Partition all accumulated steps (1..endStep) into:
-    // Trace 0: Historical completed angle steps (faded opacity = 0.3)
-    // Trace 1: Active current angle steps (full opacity = 1.0)
-    const accumulatedSteps = allSteps.slice(0, maxIdx + 1);
-    const histSteps = accumulatedSteps.filter(s => s.thetaDeg !== activeAngle);
-    const activeSteps = accumulatedSteps.filter(s => s.thetaDeg === activeAngle);
+    // If activeRangeStart === 1, we are sweeping from step 1 (Full Envelope mode).
+    // If activeRangeStart > 1, we are inspecting a specific angle (Angle mode), so only plot rangeSteps for that angle!
+    const isFullSweep = (activeRangeStart === 1);
+    const accumulatedSteps = isFullSweep ? allSteps.slice(0, maxIdx + 1) : rangeSteps;
+    const histSteps = isFullSweep ? accumulatedSteps.filter(s => s.thetaDeg !== activeAngle) : [];
+    const activeSteps = isFullSweep ? accumulatedSteps.filter(s => s.thetaDeg === activeAngle) : rangeSteps;
 
     const phaseInfo = {
         startStep: minIdx + 1,
@@ -306,6 +354,7 @@ function plot3DSteps(startStep, endStep) {
             const y = [];
             const z = [];
             const colors = [];
+            const hovertext = [];
 
             let lastAngle = null;
             for (let i = 0; i < stepList.length; i++) {
@@ -316,14 +365,25 @@ function plot3DSteps(startStep, endStep) {
                     y.push(null);
                     z.push(null);
                     colors.push(c);
+                    hovertext.push('');
                 }
                 x.push(s.Mx);
                 y.push(s.My);
                 z.push(s.Pu);
                 colors.push(c);
+
+                const xud = (s.Xu / maxY).toFixed(3);
+                const tip = `<b>Angle (θ):</b> ${s.thetaDeg.toFixed(1)}°<br>` +
+                            `<b>Mx:</b> ${s.Mx.toFixed(1)} kNm<br>` +
+                            `<b>My:</b> ${s.My.toFixed(1)} kNm<br>` +
+                            `<b>Pu:</b> ${s.Pu.toFixed(1)} kN<br>` +
+                            `<b>Xu:</b> ${s.Xu.toFixed(1)} mm<br>` +
+                            `<b>Xu/d:</b> ${xud}`;
+                hovertext.push(tip);
+
                 lastAngle = s.thetaDeg;
             }
-            return { x, y, z, colors };
+            return { x, y, z, colors, hovertext };
         };
 
         const histData = buildAngleLineArrays(histSteps);
@@ -341,6 +401,8 @@ function plot3DSteps(startStep, endStep) {
                 width: 3.5,
                 color: histData.colors
             },
+            hoverinfo: 'text',
+            hovertext: histData.hovertext,
             name: 'Completed Angles (Faded)'
         };
 
@@ -356,6 +418,8 @@ function plot3DSteps(startStep, endStep) {
                 width: 5,
                 color: activeData.colors
             },
+            hoverinfo: 'text',
+            hovertext: activeData.hovertext,
             name: `Active Angle (${activeAngle}°)`
         };
 
@@ -393,10 +457,125 @@ function plot3DSteps(startStep, endStep) {
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
     set('hudTheta', `${lastStep.thetaDeg.toFixed(1)}°`);
     set('hudXu',    `${lastStep.Xu.toFixed(1)} mm`);
+    set('hudXud',   `${(lastStep.Xu / maxY).toFixed(3)}`);
     set('hudPu',    `${lastStep.Pu.toFixed(1)} kN`);
     set('hudMu',    `${lastStep.Mu.toFixed(1)} kNm`);
 
+    const angleSlider = document.getElementById('angleSpectrumSlider');
+    const angleValLabel = document.getElementById('angleSpectrumVal');
+    if (angleSlider) angleSlider.value = Math.round(lastStep.thetaDeg);
+    if (angleValLabel) angleValLabel.textContent = `${lastStep.thetaDeg.toFixed(1)}°`;
+
     return phaseInfo;
+}
+
+/**
+ * Renders the full 3D Capacity Mesh Surface with Heatmap / Contour color mapping based on Mu flexural capacity.
+ */
+function plot3DMeshSurface() {
+    const allSteps = getAllAnimationSteps();
+    if (allSteps.length === 0) return { error: "No animation steps available" };
+
+    const numAngles = 36;
+    const stepsPerAngle = Math.round(allSteps.length / numAngles) || 30;
+
+    const xGrid = [];
+    const yGrid = [];
+    const zGrid = [];
+    const colorGrid = [];
+    const textGrid = [];
+
+    for (let r = 0; r < stepsPerAngle; r++) {
+        const xRow = [];
+        const yRow = [];
+        const zRow = [];
+        const cRow = [];
+        const tRow = [];
+
+        for (let a = 0; a <= numAngles; a++) {
+            const aIdx = a % numAngles;
+            const stepIdx = aIdx * stepsPerAngle + r;
+            const pt = allSteps[stepIdx] || allSteps[0];
+
+            xRow.push(pt.Mx);
+            yRow.push(pt.My);
+            zRow.push(pt.Pu);
+            cRow.push(pt.Mu); // Color mapped by Mu capacity
+
+            const xud = (pt.Xu / maxY).toFixed(3);
+            const tip = `<b>Angle (θ):</b> ${pt.thetaDeg.toFixed(1)}°<br>` +
+                        `<b>Mx:</b> ${pt.Mx.toFixed(1)} kNm<br>` +
+                        `<b>My:</b> ${pt.My.toFixed(1)} kNm<br>` +
+                        `<b>Pu:</b> ${pt.Pu.toFixed(1)} kN<br>` +
+                        `<b>Xu:</b> ${pt.Xu.toFixed(1)} mm<br>` +
+                        `<b>Xu/d:</b> ${xud}`;
+            tRow.push(tip);
+        }
+        xGrid.push(xRow);
+        yGrid.push(yRow);
+        zGrid.push(zRow);
+        colorGrid.push(cRow);
+        textGrid.push(tRow);
+    }
+
+    const el3D = document.getElementById('plotlyPlot3D');
+    if (el3D && typeof Plotly !== 'undefined') {
+        const maxMu = Math.max(...allSteps.map(s => Math.abs(s.Mx)), ...allSteps.map(s => Math.abs(s.My)), 50);
+        const axisLimit = Math.ceil(maxMu * 1.15);
+        const allPu = allSteps.map(s => s.Pu);
+        const minPu = Math.floor(Math.min(...allPu) * 1.1);
+        const maxPu = Math.ceil(Math.max(...allPu) * 1.1);
+
+        const isDark = typeof document !== 'undefined' && document.body.classList.contains('light-theme') ? false : true;
+        const textColor = isDark ? '#f3f4f6' : '#0f172a';
+        const gridColor = isDark ? '#2d3748' : '#e2e8f0';
+
+        const surfaceTrace = {
+            type: 'surface',
+            x: xGrid,
+            y: yGrid,
+            z: zGrid,
+            surfacecolor: colorGrid,
+            colorscale: 'Turbo', // Continuous heatmap / contour color gradient
+            hoverinfo: 'text',
+            hovertext: textGrid,
+            colorbar: {
+                title: { text: 'Mu (kNm)', font: { color: textColor, size: 11, family: 'Inter, sans-serif' } },
+                tickfont: { color: textColor, size: 10 },
+                len: 0.75,
+                thickness: 14
+            },
+            contours: {
+                x: { show: true, color: 'rgba(255,255,255,0.25)', width: 1, usecolormap: false },
+                y: { show: true, color: 'rgba(255,255,255,0.25)', width: 1, usecolormap: false },
+                z: { show: true, usecolormap: true, highlightcolor: '#ffffff', project: { z: true } }
+            },
+            lighting: {
+                ambient: 0.7,
+                diffuse: 0.85,
+                specular: 0.35,
+                roughness: 0.3,
+                fresnel: 0.2
+            },
+            opacity: 0.95,
+            name: 'Biaxial Mu-Pu Interaction Surface'
+        };
+
+        const layout = {
+            paper_bgcolor: 'transparent',
+            margin: { t: 0, r: 0, l: 0, b: 0 },
+            uirevision: 'same',
+            scene: {
+                xaxis: { title: { text: 'Mx (kNm)', font: { color: textColor } }, gridcolor: gridColor, tickfont: { color: textColor }, range: [-axisLimit, axisLimit], autorange: false },
+                yaxis: { title: { text: 'My (kNm)', font: { color: textColor } }, gridcolor: gridColor, tickfont: { color: textColor }, range: [-axisLimit, axisLimit], autorange: false },
+                zaxis: { title: { text: 'Pu (kN)', font: { color: textColor } }, gridcolor: gridColor, tickfont: { color: textColor }, range: [minPu, maxPu], autorange: false },
+                aspectmode: 'cube'
+            },
+            showlegend: false
+        };
+
+        Plotly.react(el3D, [surfaceTrace], layout, { responsive: true });
+    }
 }
 
 // ── Animation Engine State & Controls ─────────────────────────────────────────
@@ -414,14 +593,17 @@ function _syncAnimUI(info) {
     }
 
     const slider = document.getElementById('animStepSlider');
-    if (slider && info) {
-        slider.max = info.totalSteps;
+    if (slider) {
+        slider.min = activeRangeStart;
+        slider.max = activeRangeEnd;
         slider.value = currentAnimStep;
     }
 
     const badge = document.getElementById('animStepBadge');
-    if (badge && info) {
-        badge.textContent = `Step ${currentAnimStep} / ${info.totalSteps} (${info.progressPct}%)`;
+    if (badge) {
+        const total = (activeRangeEnd - activeRangeStart + 1);
+        const progress = Math.round(((currentAnimStep - activeRangeStart + 1) / total) * 100);
+        badge.textContent = `Step ${currentAnimStep} / ${activeRangeEnd} (${progress}%)`;
     }
 }
 
@@ -437,23 +619,10 @@ function append3DStep(stepNum) {
 
     const idx = Math.max(0, Math.min(allSteps.length - 1, stepNum - 1));
     const stepData = allSteps[idx];
-    const prevStepData = idx > 0 ? allSteps[idx - 1] : null;
     const el3D = document.getElementById('plotlyPlot3D');
 
     if (el3D && typeof Plotly !== 'undefined') {
-        const isNewAngle = !prevStepData || (stepData.thetaDeg !== prevStepData.thetaDeg);
-
-        if (!el3D.data || el3D.data.length < 2 || stepNum === 1 || isNewAngle) {
-            plot3DSteps(1, stepNum);
-        } else {
-            const color = _angleToRGBA(stepData.thetaDeg, 1.0);
-            Plotly.extendTraces(el3D, {
-                x: [[stepData.Mx]],
-                y: [[stepData.My]],
-                z: [[stepData.Pu]],
-                'line.color': [[color]]
-            }, [1]);
-        }
+        plot3DSteps(activeRangeStart, stepNum);
     }
 
     _update2DPlot(stepData.thetaRad, stepData.Xu, idx + 1);
@@ -461,8 +630,14 @@ function append3DStep(stepNum) {
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
     set('hudTheta', `${stepData.thetaDeg.toFixed(1)}°`);
     set('hudXu',    `${stepData.Xu.toFixed(1)} mm`);
+    set('hudXud',   `${(stepData.Xu / maxY).toFixed(3)}`);
     set('hudPu',    `${stepData.Pu.toFixed(1)} kN`);
     set('hudMu',    `${stepData.Mu.toFixed(1)} kNm`);
+
+    const angleSlider = document.getElementById('angleSpectrumSlider');
+    const angleValLabel = document.getElementById('angleSpectrumVal');
+    if (angleSlider) angleSlider.value = Math.round(stepData.thetaDeg);
+    if (angleValLabel) angleValLabel.textContent = `${stepData.thetaDeg.toFixed(1)}°`;
 
     const progressPct = parseFloat(((stepNum / allSteps.length) * 100).toFixed(1));
     return {
@@ -478,23 +653,18 @@ function playStepAnimation() {
     const allSteps = getAllAnimationSteps();
     if (allSteps.length === 0) return;
 
-    if (currentAnimStep >= allSteps.length) {
-        currentAnimStep = 1;
-    }
-
-    // Initialize 3D plot for step 1 if starting fresh
-    if (currentAnimStep === 1) {
-        plot3DSteps(1, 1);
+    if (currentAnimStep >= activeRangeEnd || currentAnimStep < activeRangeStart) {
+        currentAnimStep = activeRangeStart;
     }
 
     isAnimPlaying = true;
 
     const tick = () => {
         if (!isAnimPlaying) return;
-        const info = append3DStep(currentAnimStep);
+        const info = plot3DSteps(activeRangeStart, currentAnimStep);
         _syncAnimUI(info);
 
-        if (currentAnimStep >= allSteps.length) {
+        if (currentAnimStep >= activeRangeEnd) {
             pauseStepAnimation();
         } else {
             currentAnimStep++;
@@ -511,12 +681,7 @@ function pauseStepAnimation() {
         clearTimeout(animTimer);
         animTimer = null;
     }
-    const allSteps = getAllAnimationSteps();
-    const info = {
-        totalSteps: allSteps.length,
-        progressPct: parseFloat(((currentAnimStep / allSteps.length) * 100).toFixed(1))
-    };
-    _syncAnimUI(info);
+    _syncAnimUI();
 }
 
 function togglePlayPauseAnimation() {
@@ -529,35 +694,34 @@ function togglePlayPauseAnimation() {
 
 function resetStepAnimation() {
     pauseStepAnimation();
-    currentAnimStep = 1;
-    const info = plot3DSteps(1, 1);
+    currentAnimStep = activeRangeStart;
+    const info = plot3DSteps(activeRangeStart, currentAnimStep);
     _syncAnimUI(info);
 }
 
 function stepForwardAnimation() {
     pauseStepAnimation();
-    const allSteps = getAllAnimationSteps();
-    if (currentAnimStep < allSteps.length) {
+    if (currentAnimStep < activeRangeEnd) {
         currentAnimStep++;
     }
-    const info = plot3DSteps(1, currentAnimStep);
+    const info = plot3DSteps(activeRangeStart, currentAnimStep);
     _syncAnimUI(info);
 }
 
 function stepBackwardAnimation() {
     pauseStepAnimation();
-    if (currentAnimStep > 1) {
+    if (currentAnimStep > activeRangeStart) {
         currentAnimStep--;
     }
-    const info = plot3DSteps(1, currentAnimStep);
+    const info = plot3DSteps(activeRangeStart, currentAnimStep);
     _syncAnimUI(info);
 }
 
 function jumpToStep(stepNum) {
     pauseStepAnimation();
     const allSteps = getAllAnimationSteps();
-    currentAnimStep = Math.max(1, Math.min(allSteps.length, parseInt(stepNum) || 1));
-    const info = plot3DSteps(1, currentAnimStep);
+    currentAnimStep = Math.max(activeRangeStart, Math.min(activeRangeEnd, parseInt(stepNum) || activeRangeStart));
+    const info = plot3DSteps(activeRangeStart, currentAnimStep);
     _syncAnimUI(info);
 }
 
